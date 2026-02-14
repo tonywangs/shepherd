@@ -45,6 +45,7 @@ class SmartCaneController: ObservableObject {
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
     private var objectRecognizer: ObjectRecognizer?
+    private var espBluetooth: ESPBluetoothManager?
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
@@ -74,7 +75,8 @@ class SmartCaneController: ObservableObject {
         }
     }
 
-    func initialize() {
+    func initialize(espBluetooth: ESPBluetoothManager? = nil) {
+        self.espBluetooth = espBluetooth
         print("[Controller] Initializing Smart Cane System...")
 
         // Initialize simple subsystems first (no hardware dependencies)
@@ -165,6 +167,11 @@ class SmartCaneController: ObservableObject {
         // Send neutral command
         bleManager?.sendSteeringCommand(0)
 
+        // Zero out ESP32 motor
+        espBluetooth?.angle = 0
+        espBluetooth?.distance = 500
+        espBluetooth?.mode = 0
+
         // Stop haptics
         hapticManager?.stop()
 
@@ -219,8 +226,11 @@ class SmartCaneController: ObservableObject {
         // Update UI
         steeringCommand = steering.command
 
-        // Step 3: Send to ESP32 via BLE
+        // Step 3: Send to ESP32 via BLE (old protocol, keep for now)
         bleManager?.sendSteeringCommand(steering.command)
+
+        // Step 3b: Send to ESP32 via 12-byte protocol
+        updateESPMotor(steering: steering, zones: zones)
 
         // Step 4: Update haptics based on closest obstacle
         let closestDistance = [zones.leftDistance, zones.centerDistance, zones.rightDistance]
@@ -347,6 +357,31 @@ class SmartCaneController: ObservableObject {
         // Calculate processing time
         let processingTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
         print("[Controller] Frame processed in \(String(format: "%.2f", processingTime))ms")
+    }
+
+    /// Map LiDAR steering + obstacle proximity into ESP32 12-byte motor packet.
+    /// Sets espBluetooth.angle/distance/mode; the existing 10Hz timer auto-sends.
+    private func updateESPMotor(steering: SteeringDecision, zones: ObstacleZones) {
+        guard let esp = espBluetooth else { return }
+
+        // Closest obstacle distance across all zones
+        let closestDist = [zones.leftDistance, zones.centerDistance, zones.rightDistance]
+            .compactMap { $0 }
+            .min() ?? 5.0
+
+        // Speed: command direction × proximity-based intensity
+        // 0.2m → 255 (max), 1.2m+ → 0 (no motor)
+        let intensity = min(255.0, max(0.0, 255.0 * (1.0 - (closestDist - 0.2) / 1.0)))
+        let speed = Float(steering.command) * Float(intensity)
+
+        // Haptic distance: closest obstacle in meters × 125, capped at 500
+        let hapticDist = min(500.0, closestDist * 125.0)
+
+        esp.angle = speed
+        esp.distance = hapticDist
+        esp.mode = 1
+
+        print("[Controller] ESP32 -> speed: \(String(format: "%.1f", speed)), hapticDist: \(String(format: "%.1f", hapticDist)), mode: 1")
     }
 
     func testVoice() {

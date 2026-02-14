@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct BluetoothPairingView: View {
-    @StateObject private var ble = ESPBluetoothManager()
+    @ObservedObject var ble: ESPBluetoothManager
 
     var body: some View {
         NavigationStack {
@@ -93,5 +93,5 @@ struct BluetoothPairingView: View {
 }
 
 #Preview {
-    BluetoothPairingView()
+    BluetoothPairingView(ble: ESPBluetoothManager())
 }

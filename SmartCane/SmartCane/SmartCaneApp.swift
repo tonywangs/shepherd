@@ -9,15 +9,17 @@ import SwiftUI
 
 @main
 struct SmartCaneApp: App {
+    @StateObject private var espBluetooth = ESPBluetoothManager()
+
     var body: some Scene {
         WindowGroup {
             TabView {
-                ContentView()
+                ContentView(espBluetooth: espBluetooth)
                     .tabItem {
                         Label("Navigation", systemImage: "location.fill")
                     }
 
-                BluetoothPairingView()
+                BluetoothPairingView(ble: espBluetooth)
                     .tabItem {
                         Label("Bluetooth", systemImage: "antenna.radiowaves.left.and.right")
                     }
