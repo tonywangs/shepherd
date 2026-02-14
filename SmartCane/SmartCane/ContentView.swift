@@ -19,76 +19,201 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // Header
-                    Text("Smart Cane")
-                        .font(.largeTitle)
-                        .bold()
-                        .foregroundColor(.white)
+                    VStack(spacing: 8) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "wand.and.rays")
+                                .font(.system(size: 40))
+                                .foregroundColor(.cyan)
 
-                    // Status Section
-                    VStack(spacing: 15) {
-                        // BLE Status
-                        HStack {
-                            Circle()
-                                .fill(caneController.isConnected ? Color.green : Color.red)
-                                .frame(width: 20, height: 20)
-                            Text(caneController.isConnected ? "BLE Connected" : "BLE Disconnected")
+                            Text("Smart Cane")
+                                .font(.largeTitle)
+                                .bold()
                                 .foregroundColor(.white)
                         }
+
+                        Text("AI-Powered Navigation Assistant")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.top)
+
+                    // Status Section - Enhanced
+                    HStack(spacing: 20) {
+                        // BLE Status
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(caneController.isConnected ? Color.green.opacity(0.3) : Color.red.opacity(0.3))
+                                    .frame(width: 32, height: 32)
+
+                                Circle()
+                                    .fill(caneController.isConnected ? Color.green : Color.red)
+                                    .frame(width: 16, height: 16)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Bluetooth")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                Text(caneController.isConnected ? "Connected" : "Searching")
+                                    .font(.subheadline)
+                                    .bold()
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(12)
 
                         // LiDAR Status
-                        HStack {
-                            Circle()
-                                .fill(caneController.isARRunning ? Color.green : Color.orange)
-                                .frame(width: 20, height: 20)
-                            Text(caneController.isARRunning ? "LiDAR Active" : "LiDAR Inactive")
-                                .foregroundColor(.white)
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(caneController.isARRunning ? Color.green.opacity(0.3) : Color.orange.opacity(0.3))
+                                    .frame(width: 32, height: 32)
+
+                                Circle()
+                                    .fill(caneController.isARRunning ? Color.green : Color.orange)
+                                    .frame(width: 16, height: 16)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("LiDAR")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                Text(caneController.isARRunning ? "Active" : "Inactive")
+                                    .font(.subheadline)
+                                    .bold()
+                                    .foregroundColor(.white)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(12)
                     }
-                    .padding()
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(10)
 
                     Divider()
                         .background(Color.white)
 
-                    // Distance Readings
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Obstacle Detection")
-                            .font(.headline)
-                            .foregroundColor(.white)
+                    // Distance Readings - Enhanced Visual Display
+                    VStack(alignment: .leading, spacing: 15) {
+                        HStack {
+                            Image(systemName: "sensor.fill")
+                                .foregroundColor(.cyan)
+                            Text("Obstacle Detection")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
 
-                        HStack(spacing: 20) {
-                            VStack {
+                        HStack(spacing: 15) {
+                            // Left Zone
+                            VStack(spacing: 8) {
+                                Image(systemName: "arrow.left")
+                                    .font(.title3)
+                                    .foregroundColor(.cyan)
                                 Text("Left")
                                     .font(.caption)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.gray)
                                 Text(caneController.leftDistance.map { String(format: "%.2fm", $0) } ?? "--")
                                     .font(.title2)
-                                    .foregroundColor(.cyan)
-                            }
+                                    .bold()
+                                    .foregroundColor(getDistanceColor(caneController.leftDistance))
 
-                            VStack {
+                                // Distance bar
+                                if let dist = caneController.leftDistance {
+                                    GeometryReader { geometry in
+                                        ZStack(alignment: .leading) {
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(height: 4)
+
+                                            Rectangle()
+                                                .fill(getDistanceColor(dist))
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                        }
+                                    }
+                                    .frame(height: 4)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(12)
+
+                            // Center Zone
+                            VStack(spacing: 8) {
+                                Image(systemName: "arrow.up")
+                                    .font(.title3)
+                                    .foregroundColor(.green)
                                 Text("Center")
                                     .font(.caption)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.gray)
                                 Text(caneController.centerDistance.map { String(format: "%.2fm", $0) } ?? "--")
                                     .font(.title2)
-                                    .foregroundColor(.green)
-                            }
+                                    .bold()
+                                    .foregroundColor(getDistanceColor(caneController.centerDistance))
 
-                            VStack {
+                                // Distance bar
+                                if let dist = caneController.centerDistance {
+                                    GeometryReader { geometry in
+                                        ZStack(alignment: .leading) {
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(height: 4)
+
+                                            Rectangle()
+                                                .fill(getDistanceColor(dist))
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                        }
+                                    }
+                                    .frame(height: 4)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(12)
+
+                            // Right Zone
+                            VStack(spacing: 8) {
+                                Image(systemName: "arrow.right")
+                                    .font(.title3)
+                                    .foregroundColor(.cyan)
                                 Text("Right")
                                     .font(.caption)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.gray)
                                 Text(caneController.rightDistance.map { String(format: "%.2fm", $0) } ?? "--")
                                     .font(.title2)
-                                    .foregroundColor(.cyan)
+                                    .bold()
+                                    .foregroundColor(getDistanceColor(caneController.rightDistance))
+
+                                // Distance bar
+                                if let dist = caneController.rightDistance {
+                                    GeometryReader { geometry in
+                                        ZStack(alignment: .leading) {
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(height: 4)
+
+                                            Rectangle()
+                                                .fill(getDistanceColor(dist))
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                        }
+                                    }
+                                    .frame(height: 4)
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(12)
                         }
                     }
                     .padding()
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(10)
+                    .background(Color.gray.opacity(0.15))
+                    .cornerRadius(15)
 
                     // Depth Map Visualization
                     if caneController.showDepthVisualization {
@@ -143,95 +268,225 @@ struct ContentView: View {
                         .cornerRadius(10)
                     }
 
-                    // Object Detection Display
+                    // Object Detection Display (Dynamic)
                     if let object = caneController.detectedObject {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Detected Object")
-                                .font(.headline)
-                                .foregroundColor(.white)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.yellow)
+                                    .font(.title3)
+                                Text("Detected Object")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
 
-                            Text(object)
-                                .font(.title2)
-                                .bold()
-                                .foregroundColor(.yellow)
-                                .padding()
-                                .background(Color.gray.opacity(0.3))
-                                .cornerRadius(10)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(object.capitalized)
+                                        .font(.title)
+                                        .bold()
+                                        .foregroundColor(.yellow)
+
+                                    if let distance = caneController.detectedObjectDistance {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "ruler")
+                                                .font(.caption)
+                                                .foregroundColor(.cyan)
+                                            Text(String(format: "%.2f meters away", distance))
+                                                .font(.title3)
+                                                .foregroundColor(.cyan)
+                                        }
+                                    }
+                                }
+                                Spacer()
+
+                                // Visual distance indicator
+                                if let distance = caneController.detectedObjectDistance {
+                                    ZStack {
+                                        Circle()
+                                            .stroke(Color.yellow.opacity(0.3), lineWidth: 3)
+                                            .frame(width: 60, height: 60)
+
+                                        Circle()
+                                            .trim(from: 0, to: min(CGFloat(3.0 / max(distance, 0.1)), 1.0))
+                                            .stroke(Color.yellow, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                                            .frame(width: 60, height: 60)
+                                            .rotationEffect(.degrees(-90))
+
+                                        Text(String(format: "%.1f", distance))
+                                            .font(.caption)
+                                            .bold()
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
                         }
                         .padding()
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(10)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.yellow.opacity(0.2), Color.orange.opacity(0.1)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .cornerRadius(15)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(Color.yellow.opacity(0.5), lineWidth: 2)
+                        )
+                        .shadow(color: Color.yellow.opacity(0.3), radius: 10)
+                        .transition(.scale.combined(with: .opacity))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: caneController.detectedObject)
                     }
 
-                    // Steering Display
-                    VStack(spacing: 10) {
-                        Text("Steering Command")
-                            .font(.headline)
-                            .foregroundColor(.white)
+                    // Steering Display - Enhanced
+                    VStack(spacing: 15) {
+                        HStack {
+                            Image(systemName: "location.north.fill")
+                                .foregroundColor(.cyan)
+                            Text("Steering Command")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
 
-                        Text(caneController.steeringCommandText)
-                            .font(.system(size: 36, weight: .bold))
-                            .foregroundColor(caneController.steeringColor)
-                            .padding()
-                            .background(Color.gray.opacity(0.3))
-                            .cornerRadius(15)
+                        HStack(spacing: 20) {
+                            // Left Arrow
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(caneController.steeringCommand == -1 ? .blue : Color.gray.opacity(0.3))
+                                .scaleEffect(caneController.steeringCommand == -1 ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
+
+                            // Center Display
+                            VStack(spacing: 8) {
+                                Text(caneController.steeringCommandText)
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundColor(caneController.steeringColor)
+
+                                // Direction indicator
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 80, height: 80)
+
+                                    Circle()
+                                        .fill(caneController.steeringColor)
+                                        .frame(width: 60, height: 60)
+                                        .offset(x: CGFloat(caneController.steeringCommand) * 15)
+                                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: caneController.steeringCommand)
+                                }
+                            }
+
+                            // Right Arrow
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(caneController.steeringCommand == 1 ? .purple : Color.gray.opacity(0.3))
+                                .scaleEffect(caneController.steeringCommand == 1 ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.gray.opacity(0.2))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
+                                )
+                        )
                     }
+                    .padding()
+                    .background(Color.gray.opacity(0.15))
+                    .cornerRadius(15)
 
                     Divider()
                         .background(Color.white)
 
-                    // Control Buttons
+                    // Control Buttons - Enhanced Design
                     VStack(spacing: 15) {
+                        // Main System Toggle
                         Button(action: {
                             caneController.toggleSystem()
                         }) {
-                            HStack {
+                            HStack(spacing: 12) {
                                 Image(systemName: caneController.isSystemActive ? "stop.circle.fill" : "play.circle.fill")
+                                    .font(.title2)
                                 Text(caneController.isSystemActive ? "Stop System" : "Start System")
+                                    .font(.headline)
                             }
-                            .font(.headline)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(caneController.isSystemActive ? Color.red : Color.green)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: caneController.isSystemActive ?
+                                        [Color.red, Color.red.opacity(0.8)] :
+                                        [Color.green, Color.green.opacity(0.8)]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .cornerRadius(15)
+                            .shadow(color: (caneController.isSystemActive ? Color.red : Color.green).opacity(0.4), radius: 8)
                         }
 
-                        Button(action: {
-                            caneController.testVoice()
-                        }) {
-                            HStack {
-                                Image(systemName: "speaker.wave.2.fill")
-                                Text("Test Voice")
+                        HStack(spacing: 12) {
+                            // Test Voice Button
+                            Button(action: {
+                                caneController.testVoice()
+                            }) {
+                                HStack {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                    Text("Test Voice")
+                                }
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
                             }
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
 
-                        Button(action: {
-                            caneController.toggleDepthVisualization()
-                        }) {
-                            HStack {
-                                Image(systemName: caneController.showDepthVisualization ? "eye.slash.fill" : "eye.fill")
-                                Text(caneController.showDepthVisualization ? "Hide Depth Map" : "Show Depth Map")
+                            // Toggle Depth Visualization
+                            Button(action: {
+                                caneController.toggleDepthVisualization()
+                            }) {
+                                HStack {
+                                    Image(systemName: caneController.showDepthVisualization ? "eye.slash.fill" : "eye.fill")
+                                    Text(caneController.showDepthVisualization ? "Hide" : "Show")
+                                }
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background((caneController.showDepthVisualization ? Color.orange : Color.indigo).opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
                             }
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(caneController.showDepthVisualization ? Color.orange : Color.indigo)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
                         }
                     }
 
-                    // Debug Info
-                    Text("Latency: \(String(format: "%.1f", caneController.latencyMs))ms")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    // Debug Info - Enhanced
+                    HStack(spacing: 8) {
+                        Image(systemName: "speedometer")
+                            .font(.caption)
+                            .foregroundColor(.cyan)
+                        Text("Latency: \(String(format: "%.1f", caneController.latencyMs))ms")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+
+                        Spacer()
+
+                        if caneController.isSystemActive {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 8, height: 8)
+                                Text("System Active")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
                 .padding()
             }
@@ -239,6 +494,21 @@ struct ContentView: View {
         .onAppear {
             print("[ContentView] View appeared, initializing controller...")
             caneController.initialize()
+        }
+    }
+
+    // Helper function to get color based on distance (closer = more red)
+    private func getDistanceColor(_ distance: Float?) -> Color {
+        guard let dist = distance else { return .gray }
+
+        if dist < 0.5 {
+            return .red
+        } else if dist < 1.0 {
+            return .orange
+        } else if dist < 2.0 {
+            return .yellow
+        } else {
+            return .green
         }
     }
 }

@@ -22,6 +22,7 @@ class SmartCaneController: ObservableObject {
 
     @Published var steeringCommand: Int8 = 0 // -1, 0, +1
     @Published var detectedObject: String? = nil
+    @Published var detectedObjectDistance: Float? = nil
     @Published var latencyMs: Double = 0.0
 
     // Depth visualization
@@ -42,6 +43,7 @@ class SmartCaneController: ObservableObject {
     private var isVisualizationInProgress = false
     private var isObjectRecognitionInProgress = false
     private var lastObjectRecognitionTime: Date = .distantPast
+    private var latestDepthMap: CVPixelBuffer? = nil  // Store for distance calculation
 
     // Computed properties for UI
     var steeringCommandText: String {
@@ -178,6 +180,9 @@ class SmartCaneController: ObservableObject {
 
         let startTime = CFAbsoluteTimeGetCurrent()
 
+        // Store depth map for object distance calculation
+        latestDepthMap = frame.depthMap
+
         // Step 1: Detect obstacles in zones
         guard let zones = obstacleDetector?.analyzeDepthFrame(frame) else { return }
 
@@ -234,22 +239,42 @@ class SmartCaneController: ObservableObject {
             isObjectRecognitionInProgress = true
             lastObjectRecognitionTime = Date()
 
-            // Retain the pixel buffer by capturing it in the closure
+            // Capture pixel buffer before async closure
             let pixelBufferToProcess = cameraImage
 
             // Use lightweight person detection instead of heavy scene classification
-            objectRecognizer?.detectPerson(pixelBufferToProcess) { [weak self] objectName in
+            objectRecognizer?.detectPerson(pixelBufferToProcess) { [weak self] detectionResult in
                 guard let self = self else { return }
 
-                if let name = objectName {
-                    DispatchQueue.main.async {
-                        self.detectedObject = name
-                        self.voiceManager?.speak("\(name) ahead")
-                        print("[Controller] Detected object: \(name)")
+                // Move all processing to main thread to access main actor properties
+                DispatchQueue.main.async {
+                    if let result = detectionResult {
+                        // Calculate distance from stored depth map at detected object location
+                        let distance: Float?
+                        if let depthMap = self.latestDepthMap {
+                            distance = self.calculateDistance(from: depthMap, at: result.boundingBox)
+                        } else {
+                            distance = nil
+                        }
+
+                        self.detectedObject = result.objectName
+                        self.detectedObjectDistance = distance
+
+                        // Only announce if cooldown has passed (ObjectRecognizer handles this)
+                        let now = Date()
+                        if now.timeIntervalSince(self.lastObjectRecognitionTime) > 3.0 {
+                            if let dist = distance {
+                                self.voiceManager?.speak("\(result.objectName) ahead at \(String(format: "%.1f", dist)) meters")
+                            } else {
+                                self.voiceManager?.speak("\(result.objectName) ahead")
+                            }
+                        }
+
+                        print("[Controller] Detected \(result.objectName) at \(distance.map { String(format: "%.2fm", $0) } ?? "unknown") distance")
                         self.isObjectRecognitionInProgress = false
-                    }
-                } else {
-                    DispatchQueue.main.async {
+                    } else {
+                        self.detectedObject = nil
+                        self.detectedObjectDistance = nil
                         self.isObjectRecognitionInProgress = false
                     }
                 }
@@ -274,5 +299,50 @@ class SmartCaneController: ObservableObject {
         if !showDepthVisualization {
             depthVisualization = nil
         }
+    }
+
+    // Calculate distance from depth map at bounding box location
+    nonisolated private func calculateDistance(from depthMap: CVPixelBuffer, at boundingBox: CGRect) -> Float? {
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
+            return nil
+        }
+
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        let buffer = baseAddress.assumingMemoryBound(to: Float32.self)
+
+        // Convert normalized bounding box to pixel coordinates
+        // Note: Vision uses bottom-left origin, need to flip Y
+        let centerX = Int(boundingBox.midX * CGFloat(width))
+        let centerY = Int((1.0 - boundingBox.midY) * CGFloat(height))
+
+        // Sample multiple points in the bounding box and average
+        var depthValues: [Float] = []
+        let sampleSize = 5
+
+        for dy in -sampleSize...sampleSize {
+            for dx in -sampleSize...sampleSize {
+                let x = min(max(centerX + dx, 0), width - 1)
+                let y = min(max(centerY + dy, 0), height - 1)
+
+                let index = y * (bytesPerRow / MemoryLayout<Float32>.stride) + x
+                let depth = buffer[index]
+
+                // Filter out invalid depth values
+                if depth > 0 && depth < 10.0 {
+                    depthValues.append(depth)
+                }
+            }
+        }
+
+        // Return median depth (more robust than mean)
+        guard !depthValues.isEmpty else { return nil }
+        let sorted = depthValues.sorted()
+        return sorted[sorted.count / 2]
     }
 }

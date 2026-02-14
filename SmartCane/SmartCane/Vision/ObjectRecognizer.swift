@@ -12,6 +12,12 @@ import CoreImage
 import AVFoundation
 import Combine
 
+// Detection result with bounding box for distance calculation
+struct DetectionResult: Sendable {
+    let objectName: String
+    let boundingBox: CGRect  // Normalized coordinates (0-1)
+}
+
 class ObjectRecognizer: ObservableObject {
     @Published var detectedObjects: [String] = []
 
@@ -143,8 +149,8 @@ class ObjectRecognizer: ObservableObject {
         }
     }
 
-    // Lightweight person detection (better for real-time use)
-    func detectPerson(_ pixelBuffer: CVPixelBuffer, completion: @escaping @Sendable (String?) -> Void) {
+    // Lightweight person detection with bounding box (better for real-time use)
+    func detectPerson(_ pixelBuffer: CVPixelBuffer, completion: @escaping @Sendable (DetectionResult?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else {
                 completion(nil)
@@ -160,14 +166,20 @@ class ObjectRecognizer: ObservableObject {
 
                 // Check if any humans detected
                 if let observations = request.results as? [VNHumanObservation],
-                   !observations.isEmpty {
+                   let topObservation = observations.first {
+                    // Get the bounding box (normalized coordinates)
+                    let boundingBox = topObservation.boundingBox
+
                     // Throttle announcements
                     let now = Date()
                     if now.timeIntervalSince(self.lastAnnouncementTime) > self.announcementCooldown {
                         self.lastAnnouncementTime = now
-                        completion("person")
+                        let result = DetectionResult(objectName: "person", boundingBox: boundingBox)
+                        completion(result)
                     } else {
-                        completion(nil)
+                        // Still return result for distance calculation, but don't announce
+                        let result = DetectionResult(objectName: "person", boundingBox: boundingBox)
+                        completion(result)
                     }
                 } else {
                     completion(nil)
