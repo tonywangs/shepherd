@@ -23,7 +23,7 @@ struct ObstacleZones {
 
 class ObstacleDetector {
     // Detection parameters
-    private let maxDetectionRange: Float = 1.5  // meters
+    private let maxDetectionRange: Float = 4.0  // meters (extended for better forward visibility)
     private let minDetectionRange: Float = 0.2  // meters (too close to be useful)
 
     // Zone division (in camera frame coordinates)

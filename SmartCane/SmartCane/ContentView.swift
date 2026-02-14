@@ -137,7 +137,7 @@ struct ContentView: View {
 
                                             Rectangle()
                                                 .fill(getDistanceColor(dist))
-                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 4.0, 1.0)), height: 4)
                                         }
                                     }
                                     .frame(height: 4)
@@ -171,7 +171,7 @@ struct ContentView: View {
 
                                             Rectangle()
                                                 .fill(getDistanceColor(dist))
-                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 4.0, 1.0)), height: 4)
                                         }
                                     }
                                     .frame(height: 4)
@@ -205,7 +205,7 @@ struct ContentView: View {
 
                                             Rectangle()
                                                 .fill(getDistanceColor(dist))
-                                                .frame(width: geometry.size.width * CGFloat(min(dist / 3.0, 1.0)), height: 4)
+                                                .frame(width: geometry.size.width * CGFloat(min(dist / 4.0, 1.0)), height: 4)
                                         }
                                     }
                                     .frame(height: 4)
@@ -220,6 +220,68 @@ struct ContentView: View {
                     .padding()
                     .background(Color.gray.opacity(0.15))
                     .cornerRadius(15)
+
+                    // Steering Display - Enhanced
+                    VStack(spacing: 15) {
+                        HStack {
+                            Image(systemName: "location.north.fill")
+                                .foregroundColor(.cyan)
+                            Text("Steering Command")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+
+                        HStack(spacing: 20) {
+                            // Left Arrow
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(caneController.steeringCommand == -1 ? .blue : Color.gray.opacity(0.3))
+                                .scaleEffect(caneController.steeringCommand == -1 ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
+
+                            // Center Display
+                            VStack(spacing: 8) {
+                                Text(caneController.steeringCommandText)
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundColor(caneController.steeringColor)
+
+                                // Direction indicator
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 80, height: 80)
+
+                                    Circle()
+                                        .fill(caneController.steeringColor)
+                                        .frame(width: 60, height: 60)
+                                        .offset(x: CGFloat(caneController.steeringCommand) * 15)
+                                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: caneController.steeringCommand)
+                                }
+                            }
+
+                            // Right Arrow
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(caneController.steeringCommand == 1 ? .purple : Color.gray.opacity(0.3))
+                                .scaleEffect(caneController.steeringCommand == 1 ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.gray.opacity(0.2))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
+                                )
+                        )
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.15))
+                    .cornerRadius(15)
+
+                    Divider()
+                        .background(Color.white)
 
                     // Depth Map Visualization
                     if caneController.showDepthVisualization {
@@ -505,68 +567,6 @@ struct ContentView: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: caneController.detectedObject)
                     }
 
-                    // Steering Display - Enhanced
-                    VStack(spacing: 15) {
-                        HStack {
-                            Image(systemName: "location.north.fill")
-                                .foregroundColor(.cyan)
-                            Text("Steering Command")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-
-                        HStack(spacing: 20) {
-                            // Left Arrow
-                            Image(systemName: "arrow.left.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(caneController.steeringCommand == -1 ? .blue : Color.gray.opacity(0.3))
-                                .scaleEffect(caneController.steeringCommand == -1 ? 1.2 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
-
-                            // Center Display
-                            VStack(spacing: 8) {
-                                Text(caneController.steeringCommandText)
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(caneController.steeringColor)
-
-                                // Direction indicator
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 80, height: 80)
-
-                                    Circle()
-                                        .fill(caneController.steeringColor)
-                                        .frame(width: 60, height: 60)
-                                        .offset(x: CGFloat(caneController.steeringCommand) * 15)
-                                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: caneController.steeringCommand)
-                                }
-                            }
-
-                            // Right Arrow
-                            Image(systemName: "arrow.right.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(caneController.steeringCommand == 1 ? .purple : Color.gray.opacity(0.3))
-                                .scaleEffect(caneController.steeringCommand == 1 ? 1.2 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.gray.opacity(0.2))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
-                                )
-                        )
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.15))
-                    .cornerRadius(15)
-
-                    Divider()
-                        .background(Color.white)
-
                     // Control Buttons - Enhanced Design
                     VStack(spacing: 15) {
                         // Main System Toggle
@@ -684,10 +684,10 @@ struct ContentView: View {
 
     // Helper function to format distance display
     private func formatDistance(_ distance: Float?) -> String {
-        guard let dist = distance else { return "--" }
+        guard let dist = distance else { return "Clear" }
 
-        if dist > 3.0 {
-            return "Clear"  // Beyond useful range
+        if dist > 4.0 {
+            return "Clear"  // Beyond detection range
         } else {
             return String(format: "%.2fm", dist)
         }
@@ -695,16 +695,18 @@ struct ContentView: View {
 
     // Helper function to get color based on distance (closer = more red)
     private func getDistanceColor(_ distance: Float?) -> Color {
-        guard let dist = distance else { return .gray }
+        guard let dist = distance else { return .green }  // No obstacle = green
 
         if dist < 0.5 {
-            return .red
+            return .red      // Very close - immediate danger
         } else if dist < 1.0 {
-            return .orange
+            return .orange   // Close - caution
         } else if dist < 2.0 {
-            return .yellow
+            return .yellow   // Moderate - be aware
+        } else if dist <= 4.0 {
+            return .green    // Safe - far enough away
         } else {
-            return .green
+            return .green    // Clear
         }
     }
 }
