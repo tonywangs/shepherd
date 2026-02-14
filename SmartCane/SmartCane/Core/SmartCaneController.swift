@@ -24,6 +24,10 @@ class SmartCaneController: ObservableObject {
     @Published var detectedObject: String? = nil
     @Published var latencyMs: Double = 0.0
 
+    // Depth visualization
+    @Published var depthVisualization: UIImage? = nil
+    @Published var showDepthVisualization = false
+
     // Subsystems
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
@@ -31,8 +35,10 @@ class SmartCaneController: ObservableObject {
     private var bleManager: BLEManager?
     private var hapticManager: HapticManager?
     private var voiceManager: VoiceManager?
+    private var depthVisualizer: DepthVisualizer?
 
     private var cancellables = Set<AnyCancellable>()
+    private var isVisualizationInProgress = false
 
     // Computed properties for UI
     var steeringCommandText: String {
@@ -59,6 +65,7 @@ class SmartCaneController: ObservableObject {
         // Initialize simple subsystems first (no hardware dependencies)
         obstacleDetector = ObstacleDetector()
         steeringEngine = SteeringEngine()
+        depthVisualizer = DepthVisualizer()
 
         print("[Controller] Core systems initialized")
 
@@ -187,6 +194,29 @@ class SmartCaneController: ObservableObject {
 
         hapticManager?.updateDistance(closestDistance)
 
+        // Step 4.5: Generate depth visualization if enabled (non-blocking)
+        if showDepthVisualization && !isVisualizationInProgress {
+            isVisualizationInProgress = true
+
+            // Run on background thread to avoid blocking steering pipeline
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self = self,
+                      let visualizer = self.depthVisualizer else {
+                    self?.isVisualizationInProgress = false
+                    return
+                }
+
+                // Generate visualization
+                let image = visualizer.visualize(depthMap: frame.depthMap)
+
+                // Update UI on main thread
+                DispatchQueue.main.async {
+                    self.depthVisualization = image
+                    self.isVisualizationInProgress = false
+                }
+            }
+        }
+
         // Step 5: Object recognition (Phase 2 - runs async, doesn't block steering)
         // TODO: Integrate VNRecognizeObjectsRequest
 
@@ -200,6 +230,13 @@ class SmartCaneController: ObservableObject {
             voiceManager?.speak("Voice system working correctly")
         } else {
             print("[Controller] Voice test skipped (VoiceManager disabled)")
+        }
+    }
+
+    func toggleDepthVisualization() {
+        showDepthVisualization.toggle()
+        if !showDepthVisualization {
+            depthVisualization = nil
         }
     }
 }

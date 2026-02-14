@@ -90,6 +90,59 @@ struct ContentView: View {
                     .background(Color.gray.opacity(0.2))
                     .cornerRadius(10)
 
+                    // Depth Map Visualization
+                    if caneController.showDepthVisualization {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Depth Map Visualization")
+                                .font(.headline)
+                                .foregroundColor(.white)
+
+                            if let depthImage = caneController.depthVisualization {
+                                Image(uiImage: depthImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(height: 200)
+                                    .cornerRadius(8)
+                            } else {
+                                // Loading state
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(height: 200)
+                                        .cornerRadius(8)
+
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                }
+                            }
+
+                            // Color legend
+                            HStack(spacing: 5) {
+                                Text("0.2m")
+                                    .font(.caption2)
+                                    .foregroundColor(.white)
+
+                                // Gradient bar
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        .red, .orange, .yellow, .green, .cyan, .blue
+                                    ]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .frame(height: 20)
+                                .cornerRadius(4)
+
+                                Text("3.0m")
+                                    .font(.caption2)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(10)
+                    }
+
                     // Steering Display
                     VStack(spacing: 10) {
                         Text("Steering Command")
@@ -135,6 +188,21 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
+
+                        Button(action: {
+                            caneController.toggleDepthVisualization()
+                        }) {
+                            HStack {
+                                Image(systemName: caneController.showDepthVisualization ? "eye.slash.fill" : "eye.fill")
+                                Text(caneController.showDepthVisualization ? "Hide Depth Map" : "Show Depth Map")
+                            }
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(caneController.showDepthVisualization ? Color.orange : Color.indigo)
                             .foregroundColor(.white)
                             .cornerRadius(10)
                         }
