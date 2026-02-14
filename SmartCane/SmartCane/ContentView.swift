@@ -116,7 +116,7 @@ struct ContentView: View {
                                 Text("Left")
                                     .font(.caption)
                                     .foregroundColor(.gray)
-                                Text(caneController.leftDistance.map { String(format: "%.2fm", $0) } ?? "--")
+                                Text(formatDistance(caneController.leftDistance))
                                     .font(.title2)
                                     .bold()
                                     .foregroundColor(getDistanceColor(caneController.leftDistance))
@@ -150,7 +150,7 @@ struct ContentView: View {
                                 Text("Center")
                                     .font(.caption)
                                     .foregroundColor(.gray)
-                                Text(caneController.centerDistance.map { String(format: "%.2fm", $0) } ?? "--")
+                                Text(formatDistance(caneController.centerDistance))
                                     .font(.title2)
                                     .bold()
                                     .foregroundColor(getDistanceColor(caneController.centerDistance))
@@ -184,7 +184,7 @@ struct ContentView: View {
                                 Text("Right")
                                     .font(.caption)
                                     .foregroundColor(.gray)
-                                Text(caneController.rightDistance.map { String(format: "%.2fm", $0) } ?? "--")
+                                Text(formatDistance(caneController.rightDistance))
                                     .font(.title2)
                                     .bold()
                                     .foregroundColor(getDistanceColor(caneController.rightDistance))
@@ -266,6 +266,59 @@ struct ContentView: View {
                         .padding()
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(10)
+                    }
+
+                    // Camera Preview with Person Detection
+                    if caneController.showCameraPreview {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Image(systemName: "camera.fill")
+                                    .foregroundColor(.cyan)
+                                Text("Live Camera + Detection")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
+
+                            if let cameraImage = caneController.cameraPreview {
+                                Image(uiImage: cameraImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxHeight: 250)
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.cyan.opacity(0.5), lineWidth: 2)
+                                    )
+                            } else {
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(height: 250)
+                                        .cornerRadius(12)
+
+                                    VStack(spacing: 8) {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        Text("Waiting for detection...")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+
+                            // Detection info
+                            HStack {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.cyan)
+                                Text("Yellow box shows detected person")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(15)
                     }
 
                     // Object Detection Display (Dynamic)
@@ -429,38 +482,57 @@ struct ContentView: View {
                             .shadow(color: (caneController.isSystemActive ? Color.red : Color.green).opacity(0.4), radius: 8)
                         }
 
+                        // Secondary controls row 1
                         HStack(spacing: 12) {
-                            // Test Voice Button
-                            Button(action: {
-                                caneController.testVoice()
-                            }) {
-                                HStack {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                    Text("Test Voice")
-                                }
-                                .font(.subheadline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                            }
-
                             // Toggle Depth Visualization
                             Button(action: {
                                 caneController.toggleDepthVisualization()
                             }) {
-                                HStack {
+                                VStack(spacing: 4) {
                                     Image(systemName: caneController.showDepthVisualization ? "eye.slash.fill" : "eye.fill")
-                                    Text(caneController.showDepthVisualization ? "Hide" : "Show")
+                                        .font(.title3)
+                                    Text(caneController.showDepthVisualization ? "Hide Depth" : "Show Depth")
+                                        .font(.caption2)
                                 }
-                                .font(.subheadline)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background((caneController.showDepthVisualization ? Color.orange : Color.indigo).opacity(0.8))
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
+
+                            // Toggle Camera Preview
+                            Button(action: {
+                                caneController.toggleCameraPreview()
+                            }) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: caneController.showCameraPreview ? "video.slash.fill" : "video.fill")
+                                        .font(.title3)
+                                    Text(caneController.showCameraPreview ? "Hide Camera" : "Show Camera")
+                                        .font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background((caneController.showCameraPreview ? Color.purple : Color.teal).opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                        }
+
+                        // Secondary controls row 2
+                        Button(action: {
+                            caneController.testVoice()
+                        }) {
+                            HStack {
+                                Image(systemName: "speaker.wave.2.fill")
+                                Text("Test Voice")
+                            }
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue.opacity(0.8))
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
                         }
                     }
 
@@ -494,6 +566,17 @@ struct ContentView: View {
         .onAppear {
             print("[ContentView] View appeared, initializing controller...")
             caneController.initialize()
+        }
+    }
+
+    // Helper function to format distance display
+    private func formatDistance(_ distance: Float?) -> String {
+        guard let dist = distance else { return "--" }
+
+        if dist > 3.0 {
+            return "Clear"  // Beyond useful range
+        } else {
+            return String(format: "%.2fm", dist)
         }
     }
 
