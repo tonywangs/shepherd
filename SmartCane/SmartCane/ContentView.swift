@@ -414,18 +414,28 @@ struct ContentView: View {
                                             .clipped()
                                             .cornerRadius(12)
 
-                                        // NEW: Sidewalk centerline overlay
-                                        if caneController.showSidewalkVisualization,
-                                           let depthMap = caneController.latestDepthMap {
-                                            SidewalkOverlay(
-                                                centerlineX: caneController.sidewalkCenterlineX,
-                                                leftEdgeX: caneController.sidewalkLeftEdgeX,
-                                                rightEdgeX: caneController.sidewalkRightEdgeX,
-                                                imageWidth: CGFloat(CVPixelBufferGetWidth(depthMap)),
-                                                imageHeight: CGFloat(CVPixelBufferGetHeight(depthMap)),
-                                                displayWidth: containerGeometry.size.width,
-                                                displayHeight: isLandscape ? 280 : 240
-                                            )
+                                        // NEW: Sidewalk segmentation mask overlay
+                                        if caneController.showSidewalkVisualization {
+                                            if let segmentationMask = caneController.sidewalkSegmentationMask {
+                                                // Show ML-generated segmentation mask (better visualization)
+                                                Image(uiImage: segmentationMask)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: containerGeometry.size.width, height: isLandscape ? 280 : 240)
+                                                    .clipped()
+                                                    .opacity(0.5)  // Semi-transparent overlay
+                                            } else if let depthMap = caneController.latestDepthMap {
+                                                // Fallback: Show simple line overlay
+                                                SidewalkOverlay(
+                                                    centerlineX: caneController.sidewalkCenterlineX,
+                                                    leftEdgeX: caneController.sidewalkLeftEdgeX,
+                                                    rightEdgeX: caneController.sidewalkRightEdgeX,
+                                                    imageWidth: CGFloat(CVPixelBufferGetWidth(depthMap)),
+                                                    imageHeight: CGFloat(CVPixelBufferGetHeight(depthMap)),
+                                                    displayWidth: containerGeometry.size.width,
+                                                    displayHeight: isLandscape ? 280 : 240
+                                                )
+                                            }
                                         }
 
                                         // Zone dividers overlay - constrained to image bounds

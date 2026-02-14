@@ -41,6 +41,7 @@ class SmartCaneController: ObservableObject {
     @Published var sidewalkLeftEdgeX: Float? = nil
     @Published var sidewalkRightEdgeX: Float? = nil
     @Published var showSidewalkVisualization = false
+    @Published var sidewalkSegmentationMask: UIImage? = nil  // NEW: Segmentation mask overlay
 
     // Subsystems
     private var depthSensor: DepthSensor?
@@ -51,7 +52,7 @@ class SmartCaneController: ObservableObject {
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
     private var objectRecognizer: ObjectRecognizer?
-    private var sidewalkDetector: SimplePathDetector?  // NEW: Simple path detector (works without ML model)
+    private var sidewalkDetector: SemanticSidewalkDetector?  // NEW: ML-based semantic segmentation detector
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
@@ -89,8 +90,8 @@ class SmartCaneController: ObservableObject {
         steeringEngine = SteeringEngine()
         depthVisualizer = DepthVisualizer()
         objectRecognizer = ObjectRecognizer()
-        sidewalkDetector = SimplePathDetector()  // NEW: Initialize simple path detector
-        print("[Controller] Simple path detector initialized")
+        sidewalkDetector = SemanticSidewalkDetector()  // NEW: Initialize semantic segmentation detector
+        print("[Controller] Semantic sidewalk detector initialized")
 
         // Monitor device orientation
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
@@ -231,11 +232,15 @@ class SmartCaneController: ObservableObject {
             sidewalkCenterlineX = sidewalkBoundaries?.centerlineX
             sidewalkLeftEdgeX = sidewalkBoundaries?.leftEdgeX
             sidewalkRightEdgeX = sidewalkBoundaries?.rightEdgeX
+            sidewalkSegmentationMask = sidewalkBoundaries?.segmentationMask  // NEW: Update segmentation mask
 
             // Debug logging
             if let boundaries = sidewalkBoundaries {
                 print("[SidewalkDetector] Left: \(boundaries.leftEdgeX?.description ?? "nil")px, Right: \(boundaries.rightEdgeX?.description ?? "nil")px, Center: \(boundaries.centerlineX?.description ?? "nil")px")
                 print("[SidewalkDetector] Width: \(boundaries.widthMeters?.description ?? "nil")m, Confidence: \(boundaries.confidence), Offset: \(boundaries.userOffsetFromCenter?.description ?? "nil")m")
+                if boundaries.segmentationMask != nil {
+                    print("[SidewalkDetector] Segmentation mask generated")
+                }
             }
         }
 

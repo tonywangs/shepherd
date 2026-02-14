@@ -17,6 +17,7 @@ struct SidewalkBoundaries {
     let widthMeters: Float?     // Width of detected sidewalk in meters
     let confidence: Float       // Detection confidence 0-1
     let userOffsetFromCenter: Float?  // How far user is from center (negative = left, positive = right)
+    let segmentationMask: UIImage?  // NEW: Visual segmentation mask for overlay
 }
 
 enum ScanDirection {
@@ -55,7 +56,8 @@ class SidewalkDetector {
                 centerlineX: nil,
                 widthMeters: nil,
                 confidence: 0.0,
-                userOffsetFromCenter: nil
+                userOffsetFromCenter: nil,
+                segmentationMask: nil
             )
         }
 
@@ -169,7 +171,8 @@ class SidewalkDetector {
             centerlineX: centerlineX,
             widthMeters: widthMeters,
             confidence: confidence,
-            userOffsetFromCenter: userOffsetFromCenter
+            userOffsetFromCenter: userOffsetFromCenter,
+            segmentationMask: nil  // Depth-based detector doesn't generate visual mask
         )
     }
 

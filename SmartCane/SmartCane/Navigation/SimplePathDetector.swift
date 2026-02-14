@@ -99,7 +99,8 @@ class SimplePathDetector {
             centerlineX: smoothedCenter,
             widthMeters: widthMeters,
             confidence: confidence,
-            userOffsetFromCenter: offsetMeters
+            userOffsetFromCenter: offsetMeters,
+            segmentationMask: nil  // Simple detector doesn't generate visual mask
         )
     }
 
@@ -201,7 +202,8 @@ class SimplePathDetector {
             centerlineX: nil,
             widthMeters: nil,
             confidence: 0.0,
-            userOffsetFromCenter: nil
+            userOffsetFromCenter: nil,
+            segmentationMask: nil
         )
     }
 }
