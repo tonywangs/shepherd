@@ -414,6 +414,20 @@ struct ContentView: View {
                                             .clipped()
                                             .cornerRadius(12)
 
+                                        // NEW: Sidewalk centerline overlay
+                                        if caneController.showSidewalkVisualization,
+                                           let depthMap = caneController.latestDepthMap {
+                                            SidewalkOverlay(
+                                                centerlineX: caneController.sidewalkCenterlineX,
+                                                leftEdgeX: caneController.sidewalkLeftEdgeX,
+                                                rightEdgeX: caneController.sidewalkRightEdgeX,
+                                                imageWidth: CGFloat(CVPixelBufferGetWidth(depthMap)),
+                                                imageHeight: CGFloat(CVPixelBufferGetHeight(depthMap)),
+                                                displayWidth: containerGeometry.size.width,
+                                                displayHeight: isLandscape ? 280 : 240
+                                            )
+                                        }
+
                                         // Zone dividers overlay - constrained to image bounds
                                         ZStack {
                                             let imageWidth = containerGeometry.size.width
@@ -632,6 +646,22 @@ struct ContentView: View {
                             }
                         }
 
+                        // Secondary controls row 1b - NEW: Sidewalk visualization toggle
+                        Button(action: {
+                            caneController.showSidewalkVisualization.toggle()
+                        }) {
+                            HStack {
+                                Image(systemName: caneController.showSidewalkVisualization ? "road.lanes" : "road.lanes")
+                                Text(caneController.showSidewalkVisualization ? "Hide Sidewalk Lines" : "Show Sidewalk Lines")
+                            }
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background((caneController.showSidewalkVisualization ? Color.green : Color.gray).opacity(0.8))
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+
                         // Secondary controls row 2
                         Button(action: {
                             caneController.testVoice()
@@ -707,6 +737,61 @@ struct ContentView: View {
             return .green    // Safe - far enough away
         } else {
             return .green    // Clear
+        }
+    }
+}
+
+// NEW: Sidewalk centerline and edge overlay view
+struct SidewalkOverlay: View {
+    let centerlineX: Float?
+    let leftEdgeX: Float?
+    let rightEdgeX: Float?
+    let imageWidth: CGFloat
+    let imageHeight: CGFloat
+    let displayWidth: CGFloat
+    let displayHeight: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Left edge line (red)
+                if let leftX = leftEdgeX {
+                    Path { path in
+                        let x = (CGFloat(leftX) / imageWidth) * displayWidth
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: displayHeight))
+                    }
+                    .stroke(Color.red, lineWidth: 2)
+                }
+
+                // Right edge line (red)
+                if let rightX = rightEdgeX {
+                    Path { path in
+                        let x = (CGFloat(rightX) / imageWidth) * displayWidth
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: displayHeight))
+                    }
+                    .stroke(Color.red, lineWidth: 2)
+                }
+
+                // Centerline (green, thicker)
+                if let centerX = centerlineX {
+                    Path { path in
+                        let x = (CGFloat(centerX) / imageWidth) * displayWidth
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: displayHeight))
+                    }
+                    .stroke(Color.green, lineWidth: 4)
+
+                    // Label for centerline
+                    Text("Centerline")
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.green)
+                        .shadow(color: .black, radius: 2)
+                        .position(x: (CGFloat(centerX) / imageWidth) * displayWidth, y: displayHeight - 20)
+                }
+            }
         }
     }
 }

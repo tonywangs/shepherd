@@ -36,6 +36,12 @@ class SmartCaneController: ObservableObject {
     @Published var showCameraPreview = false
     @Published var deviceOrientation: UIDeviceOrientation = .portrait
 
+    // NEW: Sidewalk centerline visualization
+    @Published var sidewalkCenterlineX: Float? = nil
+    @Published var sidewalkLeftEdgeX: Float? = nil
+    @Published var sidewalkRightEdgeX: Float? = nil
+    @Published var showSidewalkVisualization = false
+
     // Subsystems
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
@@ -45,12 +51,13 @@ class SmartCaneController: ObservableObject {
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
     private var objectRecognizer: ObjectRecognizer?
+    private var sidewalkDetector: SimplePathDetector?  // NEW: Simple path detector (works without ML model)
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
     private var isObjectRecognitionInProgress = false
     private var lastObjectRecognitionTime: Date = .distantPast
-    private var latestDepthMap: CVPixelBuffer? = nil  // Store for distance calculation
+    var latestDepthMap: CVPixelBuffer? = nil  // Store for distance calculation (public for overlay access)
     private var latestCameraImage: CVPixelBuffer? = nil  // Store for camera preview
     private var isCameraPreviewInProgress = false
     private var lastCameraPreviewTime: Date = .distantPast
@@ -82,6 +89,8 @@ class SmartCaneController: ObservableObject {
         steeringEngine = SteeringEngine()
         depthVisualizer = DepthVisualizer()
         objectRecognizer = ObjectRecognizer()
+        sidewalkDetector = SimplePathDetector()  // NEW: Initialize simple path detector
+        print("[Controller] Simple path detector initialized")
 
         // Monitor device orientation
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
@@ -213,8 +222,25 @@ class SmartCaneController: ObservableObject {
         centerDistance = zones.centerDistance
         rightDistance = zones.rightDistance
 
-        // Step 2: Compute steering decision
-        guard let steering = steeringEngine?.computeSteering(zones: zones) else { return }
+        // Step 1.5: Detect sidewalk boundaries (NEW)
+        var sidewalkBoundaries: SidewalkBoundaries? = nil
+        if let sidewalkDetector = sidewalkDetector {
+            sidewalkBoundaries = sidewalkDetector.detectBoundaries(frame)
+
+            // Update UI state for visualization
+            sidewalkCenterlineX = sidewalkBoundaries?.centerlineX
+            sidewalkLeftEdgeX = sidewalkBoundaries?.leftEdgeX
+            sidewalkRightEdgeX = sidewalkBoundaries?.rightEdgeX
+
+            // Debug logging
+            if let boundaries = sidewalkBoundaries {
+                print("[SidewalkDetector] Left: \(boundaries.leftEdgeX?.description ?? "nil")px, Right: \(boundaries.rightEdgeX?.description ?? "nil")px, Center: \(boundaries.centerlineX?.description ?? "nil")px")
+                print("[SidewalkDetector] Width: \(boundaries.widthMeters?.description ?? "nil")m, Confidence: \(boundaries.confidence), Offset: \(boundaries.userOffsetFromCenter?.description ?? "nil")m")
+            }
+        }
+
+        // Step 2: Compute steering decision (with sidewalk boundaries)
+        guard let steering = steeringEngine?.computeSteering(zones: zones, sidewalkBoundaries: sidewalkBoundaries) else { return }
 
         // Update UI
         steeringCommand = steering.command

@@ -20,13 +20,41 @@ class SteeringEngine {
     private let obstacleThreshold: Float = 1.2  // meters - below this triggers avoidance
     private let criticalThreshold: Float = 0.6  // meters - aggressive avoidance
 
-    func computeSteering(zones: ObstacleZones) -> SteeringDecision {
-        // Priority 1: Clear path ahead - no steering needed
+    func computeSteering(zones: ObstacleZones, sidewalkBoundaries: SidewalkBoundaries? = nil) -> SteeringDecision {
+        // NEW PRIORITY 0: Sidewalk boundary enforcement (highest priority, but low confidence)
+        // Only applies gentle corrections when user drifts from centerline
+        if let boundaries = sidewalkBoundaries,
+           let offset = boundaries.userOffsetFromCenter,
+           boundaries.confidence > 0.6 {
+
+            // User is drifting off centerline
+            let driftThreshold: Float = 0.3  // 30cm offset triggers correction
+
+            if offset < -driftThreshold {
+                // User drifting LEFT, steer RIGHT to recenter
+                return SteeringDecision(
+                    command: 1,  // RIGHT
+                    confidence: 0.6,
+                    reason: "Sidewalk: Recenter from left drift (\(String(format: "%.2f", offset))m)"
+                )
+            } else if offset > driftThreshold {
+                // User drifting RIGHT, steer LEFT to recenter
+                return SteeringDecision(
+                    command: -1,  // LEFT
+                    confidence: 0.6,
+                    reason: "Sidewalk: Recenter from right drift (\(String(format: "%.2f", offset))m)"
+                )
+            }
+
+            // Within acceptable centerline tolerance, continue to obstacle check
+        }
+
+        // PRIORITY 1: Clear path ahead - no steering needed
         if !zones.centerHasObstacle && !zones.leftHasObstacle && !zones.rightHasObstacle {
             return SteeringDecision(command: 0, confidence: 1.0, reason: "Clear path")
         }
 
-        // Priority 2: Center obstacle - steer toward more open side
+        // PRIORITY 2: Center obstacle - steer toward more open side
         if zones.centerHasObstacle, let centerDist = zones.centerDistance {
             if centerDist < obstacleThreshold {
                 return avoidCenterObstacle(zones: zones, centerDist: centerDist)

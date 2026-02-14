@@ -19,6 +19,12 @@ struct ObstacleZones {
     let leftHasObstacle: Bool
     let centerHasObstacle: Bool
     let rightHasObstacle: Bool
+
+    // NEW: Sidewalk boundary fields
+    let sidewalkLeftEdge: Float?      // X coordinate of left edge
+    let sidewalkRightEdge: Float?     // X coordinate of right edge
+    let sidewalkCenterline: Float?    // X coordinate of centerline
+    let userOffsetFromCenter: Float?  // Offset from center (for steering correction)
 }
 
 class ObstacleDetector {
@@ -35,39 +41,16 @@ class ObstacleDetector {
     // Vertical zone (focus on forward path, ignore floor/ceiling)
     private let verticalZone: ClosedRange<Float> = 0.35...0.65
 
-    // Transform zone coordinates based on device orientation to fix coordinate mismatch
+    // Transform zone coordinates based on device orientation
+    // SIMPLIFIED: Only landscape mode is supported now (portrait mode removed)
     private func getTransformedZones(for orientation: UIDeviceOrientation) -> (left: ClosedRange<Float>, center: ClosedRange<Float>, right: ClosedRange<Float>) {
-        switch orientation {
-        case .portrait:
-            // 90° clockwise rotation: After rotation, what was on the right in raw coordinates
-            // appears on the left in the display, and vice versa
-            return (
-                left: rightZoneX,      // Raw right → Display left
-                center: centerZoneX,   // Center stays center
-                right: leftZoneX       // Raw left → Display right
-            )
-        case .portraitUpsideDown:
-            // 180° rotation: Complete flip
-            return (
-                left: leftZoneX,
-                center: centerZoneX,
-                right: rightZoneX
-            )
-        case .landscapeLeft, .landscapeRight:
-            // No rotation needed in landscape (camera orientation matches display)
-            return (
-                left: leftZoneX,
-                center: centerZoneX,
-                right: rightZoneX
-            )
-        default:
-            // Default to portrait behavior
-            return (
-                left: rightZoneX,
-                center: centerZoneX,
-                right: leftZoneX
-            )
-        }
+        // Always use landscape coordinates (no rotation needed)
+        // Portrait mode is no longer supported - system is designed for horizontal mounting
+        return (
+            left: leftZoneX,
+            center: centerZoneX,
+            right: rightZoneX
+        )
     }
 
     func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait) -> ObstacleZones {
@@ -82,8 +65,12 @@ class ObstacleDetector {
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
 
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
-            return ObstacleZones(leftDistance: nil, centerDistance: nil, rightDistance: nil,
-                               leftHasObstacle: false, centerHasObstacle: false, rightHasObstacle: false)
+            return ObstacleZones(
+                leftDistance: nil, centerDistance: nil, rightDistance: nil,
+                leftHasObstacle: false, centerHasObstacle: false, rightHasObstacle: false,
+                sidewalkLeftEdge: nil, sidewalkRightEdge: nil,
+                sidewalkCenterline: nil, userOffsetFromCenter: nil
+            )
         }
 
         // Depth map is Float32 format (meters)
@@ -143,7 +130,11 @@ class ObstacleDetector {
             rightDistance: right,
             leftHasObstacle: left != nil,
             centerHasObstacle: center != nil,
-            rightHasObstacle: right != nil
+            rightHasObstacle: right != nil,
+            sidewalkLeftEdge: nil,
+            sidewalkRightEdge: nil,
+            sidewalkCenterline: nil,
+            userOffsetFromCenter: nil
         )
     }
 
