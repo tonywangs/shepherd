@@ -15,6 +15,7 @@
 		53D142F52F4056D500561843 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F42F4056D500561843 /* CoreHaptics.framework */; };
 		53D142F72F4056DE00561843 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F62F4056DE00561843 /* CoreLocation.framework */; };
 		53D142F92F4056E400561843 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F82F4056E400561843 /* MapKit.framework */; };
+		F8EF5DAD2F413DA8006EE8D0 /* Vapi in Frameworks */ = {isa = PBXBuildFile; productRef = F8EF5DAC2F413DA8006EE8D0 /* Vapi */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 				53D142F32F4056CF00561843 /* Speech.framework in Frameworks */,
 				53D142EF2F4056C100561843 /* CoreBluetooth.framework in Frameworks */,
 				53D142F52F4056D500561843 /* CoreHaptics.framework in Frameworks */,
+				F8EF5DAD2F413DA8006EE8D0 /* Vapi in Frameworks */,
 				53D142F92F4056E400561843 /* MapKit.framework in Frameworks */,
 				53D142ED2F4056B900561843 /* ARKit.framework in Frameworks */,
 				53D142F12F4056C800561843 /* AVFoundation.framework in Frameworks */,
@@ -120,6 +122,7 @@
 			);
 			name = SmartCane;
 			packageProductDependencies = (
+				F8EF5DAC2F413DA8006EE8D0 /* Vapi */,
 			);
 			productName = SmartCane;
 			productReference = 53D142C12F4055C700561843 /* SmartCane.app */;
@@ -149,6 +152,9 @@
 			);
 			mainGroup = 53D142B82F4055C700561843;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F8EF5DAB2F413DA8006EE8D0 /* XCRemoteSwiftPackageReference "client-sdk-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 53D142C22F4055C700561843 /* Products */;
 			projectDirPath = "";
@@ -307,7 +313,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = M38QG8383N;
+				DEVELOPMENT_TEAM = LVST79TBLH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need Bluetooth to communicate with the Smart Cane motor controller.";
@@ -324,7 +330,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.shanemion.SmartCane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tonywang.SmartCane;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -343,7 +349,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = M38QG8383N;
+				DEVELOPMENT_TEAM = LVST79TBLH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need Bluetooth to communicate with the Smart Cane motor controller.";
@@ -360,7 +366,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.shanemion.SmartCane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tonywang.SmartCane;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -394,6 +400,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F8EF5DAB2F413DA8006EE8D0 /* XCRemoteSwiftPackageReference "client-sdk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/VapiAI/client-sdk-ios";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F8EF5DAC2F413DA8006EE8D0 /* Vapi */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8EF5DAB2F413DA8006EE8D0 /* XCRemoteSwiftPackageReference "client-sdk-ios" */;
+			productName = Vapi;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 53D142B92F4055C700561843 /* Project object */;
 }

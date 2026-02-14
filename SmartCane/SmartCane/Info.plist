@@ -7,7 +7,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is needed for GPS navigation features</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone is needed for voice commands</string>
+	<string>Microphone is needed for voice assistant and navigation commands</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Speech recognition is needed to understand voice commands</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -21,6 +21,8 @@
 	<array>
 		<string>bluetooth-central</string>
 		<string>location</string>
+		<string>voip</string>
+		<string>audio</string>
 	</array>
 </dict>
 </plist>

@@ -36,6 +36,11 @@ class SmartCaneController: ObservableObject {
     @Published var showCameraPreview = false
     @Published var deviceOrientation: UIDeviceOrientation = .portrait
 
+    // Vapi voice assistant
+    @Published var isVapiCallActive = false
+    @Published var vapiTranscript: String?
+    @Published var vapiError: String?
+
     // Subsystems
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
@@ -46,6 +51,7 @@ class SmartCaneController: ObservableObject {
     private var depthVisualizer: DepthVisualizer?
     private var objectRecognizer: ObjectRecognizer?
     private var espBluetooth: ESPBluetoothManager?
+    var vapiManager: VapiManager?
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
@@ -119,6 +125,14 @@ class SmartCaneController: ObservableObject {
         } catch {
             print("[Controller] WARNING: VoiceManager initialization failed: \(error)")
         }
+
+        // Initialize Vapi voice assistant
+        // TODO: Replace with your Vapi public key
+        vapiManager = VapiManager(publicKey: "81547ebe-da3d-44c1-8063-020598a9316f")
+        print("[Controller] VapiManager initialized")
+
+        // Subscribe to Vapi state changes
+        setupVapiSubscriptions()
 
         // Setup data pipeline
         setupDataPipeline()
@@ -203,6 +217,57 @@ class SmartCaneController: ObservableObject {
             .assign(to: &$latencyMs)
     }
 
+    private func setupVapiSubscriptions() {
+        vapiManager?.$isCallActive
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isVapiCallActive)
+
+        vapiManager?.$lastTranscript
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$vapiTranscript)
+
+        vapiManager?.$callError
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$vapiError)
+    }
+
+    // MARK: - Vapi Voice Assistant Controls
+
+    func startVapiCall() {
+        vapiManager?.startCall()
+    }
+
+    func stopVapiCall() {
+        vapiManager?.stopCall()
+    }
+
+    func toggleVapiMute() {
+        vapiManager?.toggleMute()
+    }
+
+    /// Build a compact sensor summary string for the Vapi assistant
+    private func buildSensorSummary(zones: ObstacleZones, steering: SteeringDecision) -> String {
+        let left = zones.leftDistance.map { String(format: "%.1fm", $0) } ?? "clear"
+        let center = zones.centerDistance.map { String(format: "%.1fm", $0) } ?? "clear"
+        let right = zones.rightDistance.map { String(format: "%.1fm", $0) } ?? "clear"
+
+        let steerDir: String
+        switch steering.command {
+        case -1: steerDir = "LEFT"
+        case 1: steerDir = "RIGHT"
+        default: steerDir = "STRAIGHT"
+        }
+
+        var summary = "L:\(left) C:\(center) R:\(right) Steer:\(steerDir)"
+
+        if let obj = detectedObject {
+            let dist = detectedObjectDistance.map { String(format: "%.1fm", $0) } ?? "?"
+            summary += " \(obj):\(dist)"
+        }
+
+        return summary
+    }
+
     private func processDepthFrame(_ frame: DepthFrame) {
         guard isSystemActive else { return }
 
@@ -238,6 +303,17 @@ class SmartCaneController: ObservableObject {
             .min() ?? 2.0
 
         hapticManager?.updateDistance(closestDistance)
+
+        // Step 4.1: Send sensor data to Vapi voice assistant (if call active)
+        if isVapiCallActive {
+            let summary = buildSensorSummary(zones: zones, steering: steering)
+            vapiManager?.sendSensorUpdate(summary)
+
+            // Urgent alert for critical center obstacle
+            if let centerDist = zones.centerDistance, centerDist < 0.6 {
+                vapiManager?.sendUrgentAlert("Stop. Obstacle directly ahead at \(String(format: "%.1f", centerDist)) meters.")
+            }
+        }
 
         // Step 4.5: Generate depth visualization if enabled (non-blocking)
         if showDepthVisualization && !isVisualizationInProgress {
