@@ -19,16 +19,16 @@ class ObjectRecognizer: ObservableObject {
     private let announcementCooldown: TimeInterval = 3.0 // seconds between announcements
 
     // Process camera frame for object detection
-    func processFrame(_ pixelBuffer: CVPixelBuffer, completion: @escaping (String?) -> Void) {
+    func processFrame(_ pixelBuffer: CVPixelBuffer, completion: @escaping @Sendable (String?) -> Void) {
         // Use Vision framework for object recognition
-        let request = VNRecognizeAnimalsRequest { request, error in
+        let request = VNRecognizeAnimalsRequest { [weak self] request, error in
             if let error = error {
                 print("[Vision] Error: \(error.localizedDescription)")
                 completion(nil)
                 return
             }
 
-            self.handleDetectionResults(request.results, completion: completion)
+            self?.handleDetectionResults(request.results, completion: completion)
         }
 
         // Perform request
@@ -45,20 +45,63 @@ class ObjectRecognizer: ObservableObject {
     }
 
     // Alternative: Use scene classification
-    func classifyScene(_ pixelBuffer: CVPixelBuffer, completion: @escaping (String?) -> Void) {
-        let request = VNClassifyImageRequest { request, error in
-            if let error = error {
-                print("[Vision] Error: \(error.localizedDescription)")
+    func classifyScene(_ pixelBuffer: CVPixelBuffer, completion: @escaping @Sendable (String?) -> Void) {
+        // Create request on background queue to avoid blocking
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
                 completion(nil)
                 return
             }
 
-            self.handleClassificationResults(request.results, completion: completion)
-        }
+            let request = VNClassifyImageRequest { request, error in
+                if let error = error {
+                    print("[Vision] Error: \(error.localizedDescription)")
+                    completion(nil)
+                    return
+                }
 
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
+                // Handle results inline to avoid Sendable issues
+                guard let observations = request.results as? [VNClassificationObservation] else {
+                    completion(nil)
+                    return
+                }
 
-        DispatchQueue.global(qos: .userInitiated).async {
+                // Get highest confidence classification
+                guard let topObservation = observations.first,
+                      topObservation.confidence > 0.3 else {
+                    completion(nil)
+                    return
+                }
+
+                let className = topObservation.identifier
+                print("[Vision] Classified: \(className) (confidence: \(topObservation.confidence))")
+
+                // Filter for relevant objects
+                let relevantKeywords = ["wall", "door", "person", "chair", "table", "car", "tree"]
+                let isRelevant = relevantKeywords.contains { className.lowercased().contains($0) }
+
+                if isRelevant {
+                    // Throttle announcements
+                    let now = Date()
+                    if now.timeIntervalSince(self.lastAnnouncementTime) > self.announcementCooldown {
+                        self.lastAnnouncementTime = now
+                        completion(className)
+                        return
+                    }
+                }
+
+                completion(nil)
+            }
+
+            // Specify orientation for proper image handling
+            let options: [VNImageOption: Any] = [
+                .cameraIntrinsics: NSNull() // Indicate we don't have intrinsics
+            ]
+
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer,
+                                               orientation: .right, // iPhone default orientation
+                                               options: options)
+
             do {
                 try handler.perform([request])
             } catch {
@@ -68,7 +111,7 @@ class ObjectRecognizer: ObservableObject {
         }
     }
 
-    private func handleDetectionResults(_ results: [Any]?, completion: @escaping (String?) -> Void) {
+    private func handleDetectionResults(_ results: [Any]?, completion: @escaping @Sendable (String?) -> Void) {
         guard let observations = results as? [VNRecognizedObjectObservation] else {
             completion(nil)
             return
@@ -100,48 +143,47 @@ class ObjectRecognizer: ObservableObject {
         }
     }
 
-    private func handleClassificationResults(_ results: [Any]?, completion: @escaping (String?) -> Void) {
-        guard let observations = results as? [VNClassificationObservation] else {
-            completion(nil)
-            return
-        }
+    // Lightweight person detection (better for real-time use)
+    func detectPerson(_ pixelBuffer: CVPixelBuffer, completion: @escaping @Sendable (String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                completion(nil)
+                return
+            }
 
-        // Get highest confidence classification
-        guard let topObservation = observations.first,
-              topObservation.confidence > 0.3 else {
-            completion(nil)
-            return
-        }
+            let request = VNDetectHumanRectanglesRequest { request, error in
+                if let error = error {
+                    print("[Vision] Person detection error: \(error.localizedDescription)")
+                    completion(nil)
+                    return
+                }
 
-        let className = topObservation.identifier
-        print("[Vision] Classified: \(className) (confidence: \(topObservation.confidence))")
+                // Check if any humans detected
+                if let observations = request.results as? [VNHumanObservation],
+                   !observations.isEmpty {
+                    // Throttle announcements
+                    let now = Date()
+                    if now.timeIntervalSince(self.lastAnnouncementTime) > self.announcementCooldown {
+                        self.lastAnnouncementTime = now
+                        completion("person")
+                    } else {
+                        completion(nil)
+                    }
+                } else {
+                    completion(nil)
+                }
+            }
 
-        // Filter for relevant objects
-        let relevantKeywords = ["wall", "door", "person", "chair", "table", "car", "tree"]
-        let isRelevant = relevantKeywords.contains { className.lowercased().contains($0) }
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer,
+                                               orientation: .right,
+                                               options: [:])
 
-        if isRelevant {
-            // Throttle announcements
-            let now = Date()
-            if now.timeIntervalSince(lastAnnouncementTime) > announcementCooldown {
-                lastAnnouncementTime = now
-                completion(className)
+            do {
+                try handler.perform([request])
+            } catch {
+                print("[Vision] Failed to perform person detection: \(error)")
+                completion(nil)
             }
         }
-
-        completion(nil)
     }
-
-    // TODO: Integrate with ARFrame in DepthSensor
-    // Extract capturedImage from ARFrame and pass to processFrame()
-    //
-    // Example integration:
-    // func session(_ session: ARSession, didUpdate frame: ARFrame) {
-    //     let pixelBuffer = frame.capturedImage
-    //     objectRecognizer.processFrame(pixelBuffer) { objectName in
-    //         if let name = objectName {
-    //             voiceManager.speak("\(name) ahead")
-    //         }
-    //     }
-    // }
 }

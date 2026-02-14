@@ -36,9 +36,12 @@ class SmartCaneController: ObservableObject {
     private var hapticManager: HapticManager?
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
+    private var objectRecognizer: ObjectRecognizer?
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
+    private var isObjectRecognitionInProgress = false
+    private var lastObjectRecognitionTime: Date = .distantPast
 
     // Computed properties for UI
     var steeringCommandText: String {
@@ -66,6 +69,7 @@ class SmartCaneController: ObservableObject {
         obstacleDetector = ObstacleDetector()
         steeringEngine = SteeringEngine()
         depthVisualizer = DepthVisualizer()
+        objectRecognizer = ObjectRecognizer()
 
         print("[Controller] Core systems initialized")
 
@@ -83,9 +87,13 @@ class SmartCaneController: ObservableObject {
         hapticManager = HapticManager()
         print("[Controller] HapticManager initialized")
 
-        // TEMPORARY: VoiceManager disabled due to initialization crash
-        // voiceManager = VoiceManager()
-        print("[Controller] VoiceManager SKIPPED (temporarily disabled)")
+        // VoiceManager (with lazy initialization to prevent crashes)
+        do {
+            voiceManager = VoiceManager()
+            print("[Controller] VoiceManager initialized")
+        } catch {
+            print("[Controller] WARNING: VoiceManager initialization failed: \(error)")
+        }
 
         // Setup data pipeline
         setupDataPipeline()
@@ -218,7 +226,35 @@ class SmartCaneController: ObservableObject {
         }
 
         // Step 5: Object recognition (Phase 2 - runs async, doesn't block steering)
-        // TODO: Integrate VNRecognizeObjectsRequest
+        // Throttle to prevent overwhelming Vision framework (max 1 call per 5 seconds)
+        if let cameraImage = frame.capturedImage,
+           !isObjectRecognitionInProgress,
+           Date().timeIntervalSince(lastObjectRecognitionTime) > 5.0 {
+
+            isObjectRecognitionInProgress = true
+            lastObjectRecognitionTime = Date()
+
+            // Retain the pixel buffer by capturing it in the closure
+            let pixelBufferToProcess = cameraImage
+
+            // Use lightweight person detection instead of heavy scene classification
+            objectRecognizer?.detectPerson(pixelBufferToProcess) { [weak self] objectName in
+                guard let self = self else { return }
+
+                if let name = objectName {
+                    DispatchQueue.main.async {
+                        self.detectedObject = name
+                        self.voiceManager?.speak("\(name) ahead")
+                        print("[Controller] Detected object: \(name)")
+                        self.isObjectRecognitionInProgress = false
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.isObjectRecognitionInProgress = false
+                    }
+                }
+            }
+        }
 
         // Calculate processing time
         let processingTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000

@@ -18,44 +18,55 @@ class VoiceManager: NSObject, ObservableObject {
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
 
     @Published var isListening = false
+    private var isAudioSessionConfigured = false
 
     override init() {
         super.init()
 
-        // Request speech recognition permissions
-        SFSpeechRecognizer.requestAuthorization { status in
-            switch status {
-            case .authorized:
-                print("[Voice] Speech recognition authorized")
-            case .denied:
-                print("[Voice] Speech recognition denied")
-            case .restricted:
-                print("[Voice] Speech recognition restricted")
-            case .notDetermined:
-                print("[Voice] Speech recognition not determined")
-            @unknown default:
-                print("[Voice] Speech recognition unknown status")
+        // Request speech recognition permissions (async to avoid blocking)
+        DispatchQueue.global(qos: .background).async {
+            SFSpeechRecognizer.requestAuthorization { status in
+                switch status {
+                case .authorized:
+                    print("[Voice] Speech recognition authorized")
+                case .denied:
+                    print("[Voice] Speech recognition denied")
+                case .restricted:
+                    print("[Voice] Speech recognition restricted")
+                case .notDetermined:
+                    print("[Voice] Speech recognition not determined")
+                @unknown default:
+                    print("[Voice] Speech recognition unknown status")
+                }
             }
         }
 
-        // Configure audio session for both playback and recording
-        configureAudioSession()
+        // Audio session will be configured lazily on first use
+        print("[Voice] Initialized (audio session deferred)")
     }
 
     private func configureAudioSession() {
+        guard !isAudioSessionConfigured else { return }
+
         do {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            isAudioSessionConfigured = true
             print("[Voice] Audio session configured")
         } catch {
             print("[Voice] Failed to configure audio session: \(error)")
+            print("[Voice] Continuing without audio session configuration")
+            // Don't crash - allow app to continue without voice
         }
     }
 
     // MARK: - Text-to-Speech
 
     func speak(_ text: String, priority: Bool = false) {
+        // Configure audio session on first use (lazy initialization)
+        configureAudioSession()
+
         if priority {
             synthesizer.stopSpeaking(at: .immediate)
         }

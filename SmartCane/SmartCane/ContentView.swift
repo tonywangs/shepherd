@@ -143,6 +143,26 @@ struct ContentView: View {
                         .cornerRadius(10)
                     }
 
+                    // Object Detection Display
+                    if let object = caneController.detectedObject {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Detected Object")
+                                .font(.headline)
+                                .foregroundColor(.white)
+
+                            Text(object)
+                                .font(.title2)
+                                .bold()
+                                .foregroundColor(.yellow)
+                                .padding()
+                                .background(Color.gray.opacity(0.3))
+                                .cornerRadius(10)
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(10)
+                    }
+
                     // Steering Display
                     VStack(spacing: 10) {
                         Text("Steering Command")

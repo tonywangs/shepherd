@@ -14,6 +14,7 @@ struct DepthFrame {
     let depthMap: CVPixelBuffer
     let timestamp: TimeInterval
     let cameraTransform: simd_float4x4
+    let capturedImage: CVPixelBuffer?  // RGB camera frame for object recognition
 }
 
 class DepthSensor: NSObject, ObservableObject {
@@ -70,7 +71,8 @@ extension DepthSensor: ARSessionDelegate {
         let depthFrame = DepthFrame(
             depthMap: sceneDepth.depthMap,
             timestamp: frame.timestamp,
-            cameraTransform: frame.camera.transform
+            cameraTransform: frame.camera.transform,
+            capturedImage: frame.capturedImage  // Capture RGB frame for object recognition
         )
 
         // Publish on main thread (SwiftUI requirement)
