@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		35353232343637632D656138342D343265372D623835322D /* SmartCane/DeepLabV3Int8LUT.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 36633930623233662D376234392D343831632D613665352D /* SmartCane/DeepLabV3Int8LUT.mlmodel */; };
 		53D142ED2F4056B900561843 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142EC2F4056B900561843 /* ARKit.framework */; };
 		53D142EF2F4056C100561843 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142EE2F4056C100561843 /* CoreBluetooth.framework */; };
 		53D142F12F4056C800561843 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F02F4056C800561843 /* AVFoundation.framework */; };
@@ -15,10 +14,10 @@
 		53D142F52F4056D500561843 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F42F4056D500561843 /* CoreHaptics.framework */; };
 		53D142F72F4056DE00561843 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F62F4056DE00561843 /* CoreLocation.framework */; };
 		53D142F92F4056E400561843 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 53D142F82F4056E400561843 /* MapKit.framework */; };
+		53D143042F410A8E00561843 /* DeepLabV3Int8LUT.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 53D143032F410A8E00561843 /* DeepLabV3Int8LUT.mlmodel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		36633930623233662D376234392D343831632D613665352D /* SmartCane/DeepLabV3Int8LUT.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = SmartCane/DeepLabV3Int8LUT.mlmodel; sourceTree = "<group>"; };
 		53D142C12F4055C700561843 /* SmartCane.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartCane.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		53D142EC2F4056B900561843 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
 		53D142EE2F4056C100561843 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
@@ -27,6 +26,7 @@
 		53D142F42F4056D500561843 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		53D142F62F4056DE00561843 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		53D142F82F4056E400561843 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
+		53D143032F410A8E00561843 /* DeepLabV3Int8LUT.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = DeepLabV3Int8LUT.mlmodel; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -88,7 +88,7 @@
 		53D142EB2F4056B900561843 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				36633930623233662D376234392D343831632D613665352D /* SmartCane/DeepLabV3Int8LUT.mlmodel */,
+				53D143032F410A8E00561843 /* DeepLabV3Int8LUT.mlmodel */,
 				53D142F82F4056E400561843 /* MapKit.framework */,
 				53D142F62F4056DE00561843 /* CoreLocation.framework */,
 				53D142F42F4056D500561843 /* CoreHaptics.framework */,
@@ -174,7 +174,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				35353232343637632D656138342D343265372D623835322D /* SmartCane/DeepLabV3Int8LUT.mlmodel in Sources */,
+				53D143042F410A8E00561843 /* DeepLabV3Int8LUT.mlmodel in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

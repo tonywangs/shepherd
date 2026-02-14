@@ -11,7 +11,17 @@ import SwiftUI
 struct SmartCaneApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                ContentView()
+                    .tabItem {
+                        Label("Navigation", systemImage: "location.fill")
+                    }
+
+                BluetoothPairingView()
+                    .tabItem {
+                        Label("Bluetooth", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+            }
         }
     }
 }
