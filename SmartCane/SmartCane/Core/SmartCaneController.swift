@@ -243,7 +243,7 @@ class SmartCaneController: ObservableObject {
         if showCameraPreview,
            let cameraImage = frame.capturedImage,
            !isCameraPreviewInProgress,
-           Date().timeIntervalSince(lastCameraPreviewTime) > 0.5 {  // 2fps for preview
+           Date().timeIntervalSince(lastCameraPreviewTime) > 0.1 {  // ~10fps for smoother preview
 
             isCameraPreviewInProgress = true
             lastCameraPreviewTime = Date()
@@ -259,7 +259,8 @@ class SmartCaneController: ObservableObject {
                     return
                 }
 
-                let image = UIImage(cgImage: cgImage)
+                // Create UIImage with proper orientation for portrait mode
+                let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
 
                 DispatchQueue.main.async {
                     // Only update if we don't have a detection overlay already
@@ -367,20 +368,32 @@ class SmartCaneController: ObservableObject {
 
             guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
 
-            let size = CGSize(width: cgImage.width, height: cgImage.height)
+            // Rotate for portrait orientation
+            let size = CGSize(width: cgImage.height, height: cgImage.width)  // Swapped for rotation
             UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
             guard let ctx = UIGraphicsGetCurrentContext() else { return }
 
-            // Draw camera image
-            ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
+            // Save state before rotation
+            ctx.saveGState()
 
-            // Convert normalized bounding box to pixel coordinates
-            // Note: Vision uses bottom-left origin, UIKit uses top-left
+            // Apply rotation transform (90 degrees clockwise)
+            ctx.translateBy(x: size.width / 2, y: size.height / 2)
+            ctx.rotate(by: .pi / 2)
+            ctx.translateBy(x: -CGFloat(cgImage.width) / 2, y: -CGFloat(cgImage.height) / 2)
+
+            // Draw camera image
+            ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+
+            // Restore state for drawing bounding box
+            ctx.restoreGState()
+
+            // Convert normalized bounding box to rotated image coordinates
+            // After 90° rotation: x' = y, y' = (1 - x - width)
             let rect = CGRect(
-                x: boundingBox.minX * size.width,
-                y: (1.0 - boundingBox.maxY) * size.height,  // Flip Y
-                width: boundingBox.width * size.width,
-                height: boundingBox.height * size.height
+                x: boundingBox.minY * size.width,
+                y: (1.0 - boundingBox.maxX) * size.height,
+                width: boundingBox.height * size.width,
+                height: boundingBox.width * size.height
             )
 
             // Draw bounding box

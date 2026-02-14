@@ -9,6 +9,12 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var caneController = SmartCaneController()
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.verticalSizeClass) var verticalSizeClass
+
+    var isLandscape: Bool {
+        horizontalSizeClass == .regular || verticalSizeClass == .compact
+    }
 
     var body: some View {
         ZStack {
@@ -217,24 +223,79 @@ struct ContentView: View {
 
                     // Depth Map Visualization
                     if caneController.showDepthVisualization {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Depth Map Visualization")
-                                .font(.headline)
-                                .foregroundColor(.white)
+                        VStack(alignment: .center, spacing: 10) {
+                            HStack {
+                                Image(systemName: "chart.bar.fill")
+                                    .foregroundColor(.cyan)
+                                Text("Depth Map Visualization")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
 
                             if let depthImage = caneController.depthVisualization {
-                                Image(uiImage: depthImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(height: 200)
-                                    .cornerRadius(8)
+                                ZStack {
+                                    Image(uiImage: depthImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: isLandscape ? 250 : 320)
+                                        .clipped()
+                                        .cornerRadius(12)
+
+                                    // Zone dividers overlay
+                                    GeometryReader { geometry in
+                                        ZStack {
+                                            // Left/Center divider at 33%
+                                            Rectangle()
+                                                .fill(Color.yellow.opacity(0.8))
+                                                .frame(width: 2)
+                                                .position(x: geometry.size.width * 0.33, y: geometry.size.height / 2)
+
+                                            // Center/Right divider at 67%
+                                            Rectangle()
+                                                .fill(Color.yellow.opacity(0.8))
+                                                .frame(width: 2)
+                                                .position(x: geometry.size.width * 0.67, y: geometry.size.height / 2)
+
+                                            // Zone labels
+                                            Text("L")
+                                                .font(.system(size: 20, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black, radius: 2)
+                                                .position(x: geometry.size.width * 0.165, y: 25)
+
+                                            VStack(spacing: 2) {
+                                                Text("C")
+                                                    .font(.system(size: 20, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                    .shadow(color: .black, radius: 2)
+                                                Text("~0.5m")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                                    .foregroundColor(.yellow)
+                                                    .shadow(color: .black, radius: 2)
+                                            }
+                                            .position(x: geometry.size.width * 0.5, y: 30)
+
+                                            Text("R")
+                                                .font(.system(size: 20, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black, radius: 2)
+                                                .position(x: geometry.size.width * 0.835, y: 25)
+                                        }
+                                    }
+                                }
+                                .frame(height: isLandscape ? 250 : 320)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.cyan.opacity(0.5), lineWidth: 2)
+                                )
                             } else {
                                 // Loading state
                                 ZStack {
                                     Rectangle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(height: 200)
-                                        .cornerRadius(8)
+                                        .frame(height: isLandscape ? 250 : 320)
+                                        .cornerRadius(12)
 
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -270,36 +331,83 @@ struct ContentView: View {
 
                     // Camera Preview with Person Detection
                     if caneController.showCameraPreview {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .center, spacing: 10) {
                             HStack {
                                 Image(systemName: "camera.fill")
-                                    .foregroundColor(.cyan)
+                                    .foregroundColor(.yellow)
                                 Text("Live Camera + Detection")
                                     .font(.headline)
                                     .foregroundColor(.white)
                             }
 
                             if let cameraImage = caneController.cameraPreview {
-                                Image(uiImage: cameraImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxHeight: 250)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.cyan.opacity(0.5), lineWidth: 2)
-                                    )
+                                ZStack {
+                                    Image(uiImage: cameraImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: isLandscape ? 250 : 320)
+                                        .clipped()
+                                        .cornerRadius(12)
+
+                                    // Zone dividers overlay
+                                    GeometryReader { geometry in
+                                        ZStack {
+                                            // Left/Center divider at 33%
+                                            Rectangle()
+                                                .fill(Color.yellow.opacity(0.8))
+                                                .frame(width: 2)
+                                                .position(x: geometry.size.width * 0.33, y: geometry.size.height / 2)
+
+                                            // Center/Right divider at 67%
+                                            Rectangle()
+                                                .fill(Color.yellow.opacity(0.8))
+                                                .frame(width: 2)
+                                                .position(x: geometry.size.width * 0.67, y: geometry.size.height / 2)
+
+                                            // Zone labels
+                                            Text("L")
+                                                .font(.system(size: 20, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black, radius: 3)
+                                                .position(x: geometry.size.width * 0.165, y: 25)
+
+                                            VStack(spacing: 2) {
+                                                Text("C")
+                                                    .font(.system(size: 20, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                    .shadow(color: .black, radius: 3)
+                                                Text("~0.5m")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                                    .foregroundColor(.yellow)
+                                                    .shadow(color: .black, radius: 3)
+                                            }
+                                            .position(x: geometry.size.width * 0.5, y: 30)
+
+                                            Text("R")
+                                                .font(.system(size: 20, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black, radius: 3)
+                                                .position(x: geometry.size.width * 0.835, y: 25)
+                                        }
+                                    }
+                                }
+                                .frame(height: isLandscape ? 250 : 320)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.yellow.opacity(0.5), lineWidth: 2)
+                                )
                             } else {
                                 ZStack {
                                     Rectangle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(height: 250)
+                                        .frame(height: isLandscape ? 250 : 320)
                                         .cornerRadius(12)
 
                                     VStack(spacing: 8) {
                                         ProgressView()
                                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        Text("Waiting for detection...")
+                                        Text("Initializing camera...")
                                             .font(.caption)
                                             .foregroundColor(.gray)
                                     }
@@ -308,13 +416,14 @@ struct ContentView: View {
 
                             // Detection info
                             HStack {
-                                Image(systemName: "info.circle")
+                                Image(systemName: "info.circle.fill")
                                     .font(.caption)
-                                    .foregroundColor(.cyan)
+                                    .foregroundColor(.yellow)
                                 Text("Yellow box shows detected person")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
+                            .frame(maxWidth: .infinity)
                         }
                         .padding()
                         .background(Color.gray.opacity(0.15))
