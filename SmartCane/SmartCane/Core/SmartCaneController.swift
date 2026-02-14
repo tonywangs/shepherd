@@ -205,8 +205,8 @@ class SmartCaneController: ObservableObject {
         latestDepthMap = frame.depthMap
         latestCameraImage = frame.capturedImage
 
-        // Step 1: Detect obstacles in zones
-        guard let zones = obstacleDetector?.analyzeDepthFrame(frame) else { return }
+        // Step 1: Detect obstacles in zones (pass orientation for coordinate transform)
+        guard let zones = obstacleDetector?.analyzeDepthFrame(frame, orientation: deviceOrientation) else { return }
 
         // Update UI
         leftDistance = zones.leftDistance
