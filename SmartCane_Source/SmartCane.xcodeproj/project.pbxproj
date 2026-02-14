@@ -1,0 +1,11 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		/* Project structure - minimal Xcode project file */
+	};
+	rootObject = D9000001;
+}

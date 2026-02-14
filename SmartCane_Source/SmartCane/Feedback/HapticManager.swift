@@ -8,7 +8,6 @@
 
 import Foundation
 import CoreHaptics
-import Combine
 
 class HapticManager: ObservableObject {
     private var engine: CHHapticEngine?

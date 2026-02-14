@@ -8,7 +8,6 @@
 import Foundation
 import AVFoundation
 import Speech
-import Combine
 
 class VoiceManager: NSObject, ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()

@@ -10,7 +10,6 @@ import Foundation
 import Vision
 import CoreImage
 import AVFoundation
-import Combine
 
 class ObjectRecognizer: ObservableObject {
     @Published var detectedObjects: [String] = []

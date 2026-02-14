@@ -56,29 +56,13 @@ class SmartCaneController: ObservableObject {
     func initialize() {
         print("[Controller] Initializing Smart Cane System...")
 
-        // Initialize simple subsystems first (no hardware dependencies)
+        // Initialize all subsystems
+        depthSensor = DepthSensor()
         obstacleDetector = ObstacleDetector()
         steeringEngine = SteeringEngine()
-
-        print("[Controller] Core systems initialized")
-
-        // Initialize hardware subsystems (these might fail on simulator)
-        do {
-            depthSensor = DepthSensor()
-            print("[Controller] DepthSensor initialized")
-        } catch {
-            print("[Controller] WARNING: DepthSensor initialization failed: \(error)")
-        }
-
         bleManager = BLEManager()
-        print("[Controller] BLEManager initialized")
-
         hapticManager = HapticManager()
-        print("[Controller] HapticManager initialized")
-
-        // TEMPORARY: VoiceManager disabled due to initialization crash
-        // voiceManager = VoiceManager()
-        print("[Controller] VoiceManager SKIPPED (temporarily disabled)")
+        voiceManager = VoiceManager()
 
         // Setup data pipeline
         setupDataPipeline()
@@ -110,11 +94,7 @@ class SmartCaneController: ObservableObject {
         hapticManager?.initialize()
 
         // Announce start
-        if voiceManager != nil {
-            voiceManager?.speak("Smart cane activated")
-        } else {
-            print("[Controller] Voice announcement skipped (VoiceManager disabled)")
-        }
+        voiceManager?.speak("Smart cane activated")
     }
 
     private func stopSystem() {
@@ -131,11 +111,7 @@ class SmartCaneController: ObservableObject {
         hapticManager?.stop()
 
         // Announce stop
-        if voiceManager != nil {
-            voiceManager?.speak("Smart cane deactivated")
-        } else {
-            print("[Controller] Voice announcement skipped (VoiceManager disabled)")
-        }
+        voiceManager?.speak("Smart cane deactivated")
     }
 
     private func setupDataPipeline() {
@@ -196,10 +172,6 @@ class SmartCaneController: ObservableObject {
     }
 
     func testVoice() {
-        if voiceManager != nil {
-            voiceManager?.speak("Voice system working correctly")
-        } else {
-            print("[Controller] Voice test skipped (VoiceManager disabled)")
-        }
+        voiceManager?.speak("Voice system working correctly")
     }
 }
