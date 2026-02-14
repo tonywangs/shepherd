@@ -25,9 +25,11 @@ class DepthVisualizer {
     private var outputHeight: Int = 0
 
     /// Convert depth map to heat map UIImage
-    /// - Parameter depthMap: CVPixelBuffer containing Float32 depth values in meters
+    /// - Parameters:
+    ///   - depthMap: CVPixelBuffer containing Float32 depth values in meters
+    ///   - orientation: Device orientation for proper image rotation
     /// - Returns: UIImage with color-coded depth visualization, or nil on error
-    func visualize(depthMap: CVPixelBuffer) -> UIImage? {
+    func visualize(depthMap: CVPixelBuffer, orientation: UIDeviceOrientation = .portrait) -> UIImage? {
         // Lock pixel buffer for reading
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
@@ -86,9 +88,22 @@ class DepthVisualizer {
             return nil
         }
 
-        // Fix rotation - AR depth maps are rotated 90 degrees
-        // Use .right orientation to rotate counterclockwise
-        return UIImage(cgImage: image, scale: 1.0, orientation: .right)
+        // Apply rotation based on device orientation
+        let imageOrientation: UIImage.Orientation
+        switch orientation {
+        case .portrait:
+            imageOrientation = .right        // Fixed: back to original for portrait
+        case .portraitUpsideDown:
+            imageOrientation = .left         // Fixed: back to original for portrait
+        case .landscapeLeft:
+            imageOrientation = .up           // Keep as is (works in landscape)
+        case .landscapeRight:
+            imageOrientation = .down         // Keep as is (works in landscape)
+        default:
+            imageOrientation = .right
+        }
+
+        return UIImage(cgImage: image, scale: 1.0, orientation: imageOrientation)
     }
 
     /// Map depth value to heat map color

@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import UIKit
 
 @MainActor
 class SmartCaneController: ObservableObject {
@@ -33,6 +34,7 @@ class SmartCaneController: ObservableObject {
     @Published var cameraPreview: UIImage? = nil
     @Published var detectedPersonBox: CGRect? = nil
     @Published var showCameraPreview = false
+    @Published var deviceOrientation: UIDeviceOrientation = .portrait
 
     // Subsystems
     private var depthSensor: DepthSensor?
@@ -80,6 +82,17 @@ class SmartCaneController: ObservableObject {
         steeringEngine = SteeringEngine()
         depthVisualizer = DepthVisualizer()
         objectRecognizer = ObjectRecognizer()
+
+        // Monitor device orientation
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.deviceOrientation = UIDevice.current.orientation
+            print("[Controller] Device orientation changed: \(UIDevice.current.orientation.rawValue)")
+        }
 
         print("[Controller] Core systems initialized")
 
@@ -228,8 +241,8 @@ class SmartCaneController: ObservableObject {
                     return
                 }
 
-                // Generate visualization
-                let image = visualizer.visualize(depthMap: frame.depthMap)
+                // Generate visualization with current orientation
+                let image = visualizer.visualize(depthMap: frame.depthMap, orientation: self.deviceOrientation)
 
                 // Update UI on main thread
                 DispatchQueue.main.async {
@@ -259,14 +272,15 @@ class SmartCaneController: ObservableObject {
                     return
                 }
 
-                // Create UIImage with proper orientation for portrait mode
-                let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+                // Get current device orientation
+                let orientation = self.getImageOrientation()
+
+                // Create UIImage with proper orientation
+                let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
 
                 DispatchQueue.main.async {
-                    // Only update if we don't have a detection overlay already
-                    if self.detectedPersonBox == nil {
-                        self.cameraPreview = image
-                    }
+                    // Always update live preview (don't freeze when detection happens)
+                    self.cameraPreview = image
                     self.isCameraPreviewInProgress = false
                 }
             }
@@ -358,6 +372,22 @@ class SmartCaneController: ObservableObject {
         }
     }
 
+    // Get correct image orientation based on device orientation
+    private func getImageOrientation() -> UIImage.Orientation {
+        switch deviceOrientation {
+        case .portrait:
+            return .right        // Fixed: back to original for portrait
+        case .portraitUpsideDown:
+            return .left         // Fixed: back to original for portrait
+        case .landscapeLeft:
+            return .up           // Keep as is (works in landscape)
+        case .landscapeRight:
+            return .down         // Keep as is (works in landscape)
+        default:
+            return .right        // Default to portrait
+        }
+    }
+
     // Generate camera preview with bounding box overlay
     private func generateCameraPreview(from pixelBuffer: CVPixelBuffer, boundingBox: CGRect) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -368,18 +398,39 @@ class SmartCaneController: ObservableObject {
 
             guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
 
-            // Rotate for portrait orientation
-            let size = CGSize(width: cgImage.height, height: cgImage.width)  // Swapped for rotation
+            // Get orientation and determine output size
+            let orientation = self.getImageOrientation()
+            let needsRotation = orientation == .right || orientation == .left
+            let size = needsRotation ?
+                CGSize(width: cgImage.height, height: cgImage.width) :
+                CGSize(width: cgImage.width, height: cgImage.height)
+
             UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
             guard let ctx = UIGraphicsGetCurrentContext() else { return }
 
             // Save state before rotation
             ctx.saveGState()
 
-            // Apply rotation transform (90 degrees clockwise)
-            ctx.translateBy(x: size.width / 2, y: size.height / 2)
-            ctx.rotate(by: .pi / 2)
-            ctx.translateBy(x: -CGFloat(cgImage.width) / 2, y: -CGFloat(cgImage.height) / 2)
+            // Apply rotation based on orientation
+            switch orientation {
+            case .right:  // Portrait (fixed: back to original)
+                ctx.translateBy(x: size.width / 2, y: size.height / 2)
+                ctx.rotate(by: .pi / 2)
+                ctx.translateBy(x: -CGFloat(cgImage.width) / 2, y: -CGFloat(cgImage.height) / 2)
+            case .left:  // Portrait upside down (fixed: back to original)
+                ctx.translateBy(x: size.width / 2, y: size.height / 2)
+                ctx.rotate(by: -.pi / 2)
+                ctx.translateBy(x: -CGFloat(cgImage.width) / 2, y: -CGFloat(cgImage.height) / 2)
+            case .up:  // Landscape left (keep as is)
+                // No rotation needed
+                break
+            case .down:  // Landscape right (keep as is)
+                ctx.translateBy(x: size.width / 2, y: size.height / 2)
+                ctx.rotate(by: .pi)
+                ctx.translateBy(x: -CGFloat(cgImage.width) / 2, y: -CGFloat(cgImage.height) / 2)
+            default:
+                break
+            }
 
             // Draw camera image
             ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
@@ -387,14 +438,40 @@ class SmartCaneController: ObservableObject {
             // Restore state for drawing bounding box
             ctx.restoreGState()
 
-            // Convert normalized bounding box to rotated image coordinates
-            // After 90° rotation: x' = y, y' = (1 - x - width)
-            let rect = CGRect(
-                x: boundingBox.minY * size.width,
-                y: (1.0 - boundingBox.maxX) * size.height,
-                width: boundingBox.height * size.width,
-                height: boundingBox.width * size.height
-            )
+            // Convert normalized bounding box to image coordinates (adjusted for rotation)
+            let rect: CGRect
+            switch orientation {
+            case .right:  // Portrait - 90° CW (fixed: back to original)
+                rect = CGRect(
+                    x: boundingBox.minY * size.width,
+                    y: (1.0 - boundingBox.maxX) * size.height,
+                    width: boundingBox.height * size.width,
+                    height: boundingBox.width * size.height
+                )
+            case .left:  // Portrait upside down - 90° CCW (fixed: back to original)
+                rect = CGRect(
+                    x: (1.0 - boundingBox.maxY) * size.width,
+                    y: boundingBox.minX * size.height,
+                    width: boundingBox.height * size.width,
+                    height: boundingBox.width * size.height
+                )
+            case .up:  // Landscape left - no rotation (keep as is)
+                rect = CGRect(
+                    x: boundingBox.minX * size.width,
+                    y: (1.0 - boundingBox.maxY) * size.height,
+                    width: boundingBox.width * size.width,
+                    height: boundingBox.height * size.height
+                )
+            case .down:  // Landscape right - 180° (keep as is)
+                rect = CGRect(
+                    x: (1.0 - boundingBox.maxX) * size.width,
+                    y: boundingBox.minY * size.height,
+                    width: boundingBox.width * size.width,
+                    height: boundingBox.height * size.height
+                )
+            default:
+                rect = .zero
+            }
 
             // Draw bounding box
             ctx.setStrokeColor(UIColor.yellow.cgColor)

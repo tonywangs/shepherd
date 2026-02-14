@@ -233,36 +233,38 @@ struct ContentView: View {
                             }
 
                             if let depthImage = caneController.depthVisualization {
-                                ZStack {
-                                    Image(uiImage: depthImage)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: isLandscape ? 250 : 320)
-                                        .clipped()
-                                        .cornerRadius(12)
+                                GeometryReader { containerGeometry in
+                                    ZStack {
+                                        Image(uiImage: depthImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: containerGeometry.size.width, height: isLandscape ? 280 : 240)
+                                            .clipped()
+                                            .cornerRadius(12)
 
-                                    // Zone dividers overlay
-                                    GeometryReader { geometry in
+                                        // Zone dividers overlay - constrained to image bounds
                                         ZStack {
+                                            let imageWidth = containerGeometry.size.width
+                                            let imageHeight = isLandscape ? CGFloat(280) : CGFloat(240)
+
                                             // Left/Center divider at 33%
                                             Rectangle()
                                                 .fill(Color.yellow.opacity(0.8))
-                                                .frame(width: 2)
-                                                .position(x: geometry.size.width * 0.33, y: geometry.size.height / 2)
+                                                .frame(width: 2, height: imageHeight)
+                                                .position(x: imageWidth * 0.33, y: imageHeight / 2)
 
                                             // Center/Right divider at 67%
                                             Rectangle()
                                                 .fill(Color.yellow.opacity(0.8))
-                                                .frame(width: 2)
-                                                .position(x: geometry.size.width * 0.67, y: geometry.size.height / 2)
+                                                .frame(width: 2, height: imageHeight)
+                                                .position(x: imageWidth * 0.67, y: imageHeight / 2)
 
                                             // Zone labels
                                             Text("L")
                                                 .font(.system(size: 20, weight: .bold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black, radius: 2)
-                                                .position(x: geometry.size.width * 0.165, y: 25)
+                                                .position(x: imageWidth * 0.165, y: 25)
 
                                             VStack(spacing: 2) {
                                                 Text("C")
@@ -274,17 +276,17 @@ struct ContentView: View {
                                                     .foregroundColor(.yellow)
                                                     .shadow(color: .black, radius: 2)
                                             }
-                                            .position(x: geometry.size.width * 0.5, y: 30)
+                                            .position(x: imageWidth * 0.5, y: 30)
 
                                             Text("R")
                                                 .font(.system(size: 20, weight: .bold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black, radius: 2)
-                                                .position(x: geometry.size.width * 0.835, y: 25)
+                                                .position(x: imageWidth * 0.835, y: 25)
                                         }
                                     }
                                 }
-                                .frame(height: isLandscape ? 250 : 320)
+                                .frame(height: isLandscape ? 280 : 240)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
                                         .stroke(Color.cyan.opacity(0.5), lineWidth: 2)
@@ -294,7 +296,7 @@ struct ContentView: View {
                                 ZStack {
                                     Rectangle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(height: isLandscape ? 250 : 320)
+                                        .frame(height: isLandscape ? 280 : 240)
                                         .cornerRadius(12)
 
                                     ProgressView()
@@ -341,36 +343,38 @@ struct ContentView: View {
                             }
 
                             if let cameraImage = caneController.cameraPreview {
-                                ZStack {
-                                    Image(uiImage: cameraImage)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: isLandscape ? 250 : 320)
-                                        .clipped()
-                                        .cornerRadius(12)
+                                GeometryReader { containerGeometry in
+                                    ZStack {
+                                        Image(uiImage: cameraImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: containerGeometry.size.width, height: isLandscape ? 280 : 240)
+                                            .clipped()
+                                            .cornerRadius(12)
 
-                                    // Zone dividers overlay
-                                    GeometryReader { geometry in
+                                        // Zone dividers overlay - constrained to image bounds
                                         ZStack {
+                                            let imageWidth = containerGeometry.size.width
+                                            let imageHeight = isLandscape ? CGFloat(280) : CGFloat(240)
+
                                             // Left/Center divider at 33%
                                             Rectangle()
                                                 .fill(Color.yellow.opacity(0.8))
-                                                .frame(width: 2)
-                                                .position(x: geometry.size.width * 0.33, y: geometry.size.height / 2)
+                                                .frame(width: 2, height: imageHeight)
+                                                .position(x: imageWidth * 0.33, y: imageHeight / 2)
 
                                             // Center/Right divider at 67%
                                             Rectangle()
                                                 .fill(Color.yellow.opacity(0.8))
-                                                .frame(width: 2)
-                                                .position(x: geometry.size.width * 0.67, y: geometry.size.height / 2)
+                                                .frame(width: 2, height: imageHeight)
+                                                .position(x: imageWidth * 0.67, y: imageHeight / 2)
 
                                             // Zone labels
                                             Text("L")
                                                 .font(.system(size: 20, weight: .bold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black, radius: 3)
-                                                .position(x: geometry.size.width * 0.165, y: 25)
+                                                .position(x: imageWidth * 0.165, y: 25)
 
                                             VStack(spacing: 2) {
                                                 Text("C")
@@ -382,17 +386,17 @@ struct ContentView: View {
                                                     .foregroundColor(.yellow)
                                                     .shadow(color: .black, radius: 3)
                                             }
-                                            .position(x: geometry.size.width * 0.5, y: 30)
+                                            .position(x: imageWidth * 0.5, y: 30)
 
                                             Text("R")
                                                 .font(.system(size: 20, weight: .bold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black, radius: 3)
-                                                .position(x: geometry.size.width * 0.835, y: 25)
+                                                .position(x: imageWidth * 0.835, y: 25)
                                         }
                                     }
                                 }
-                                .frame(height: isLandscape ? 250 : 320)
+                                .frame(height: isLandscape ? 280 : 240)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
                                         .stroke(Color.yellow.opacity(0.5), lineWidth: 2)
@@ -401,7 +405,7 @@ struct ContentView: View {
                                 ZStack {
                                     Rectangle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(height: isLandscape ? 250 : 320)
+                                        .frame(height: isLandscape ? 280 : 240)
                                         .cornerRadius(12)
 
                                     VStack(spacing: 8) {
