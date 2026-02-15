@@ -15,7 +15,7 @@ struct SmartCaneApp: App {
     var body: some Scene {
         WindowGroup {
             TabView {
-                ContentView(espBluetooth: espBluetooth, caneController: caneController)
+                ContentView(caneController: caneController, espBluetooth: espBluetooth)
                     .tabItem {
                         Label("Navigation", systemImage: "location.fill")
                     }

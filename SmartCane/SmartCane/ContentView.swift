@@ -441,6 +441,92 @@ struct ContentView: View {
                         .cornerRadius(15)
                     }
 
+                    // Terrain Debug Panel
+                    if caneController.terrainDebugMode {
+                        VStack(alignment: .leading, spacing: 10) {
+                            // Header
+                            HStack {
+                                Image(systemName: "leaf.fill")
+                                    .foregroundColor(.green)
+                                Text("Terrain Debug")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Spacer()
+                                // Status indicator
+                                Circle()
+                                    .fill(caneController.terrainDetected ? Color.orange : Color.green)
+                                    .frame(width: 12, height: 12)
+                                Text(caneController.terrainDetected ? caneController.detectedTerrainType.capitalized : "Clear")
+                                    .font(.caption)
+                                    .foregroundColor(caneController.terrainDetected ? .orange : .green)
+                            }
+
+                            // Per-zone coverage bars
+                            HStack(spacing: 12) {
+                                terrainZoneBar(label: "L", coverage: caneController.terrainLeftCoverage)
+                                terrainZoneBar(label: "C", coverage: caneController.terrainCenterCoverage)
+                                terrainZoneBar(label: "R", coverage: caneController.terrainRightCoverage)
+                            }
+                            .frame(height: 80)
+
+                            // Segmentation overlay
+                            if let overlayImage = caneController.terrainDebugImage {
+                                ZStack {
+                                    // Camera feed underneath (if available)
+                                    if let cameraImage = caneController.cameraPreview {
+                                        Image(uiImage: cameraImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 200)
+                                            .clipped()
+                                            .cornerRadius(12)
+                                    }
+
+                                    // Segmentation overlay on top
+                                    Image(uiImage: overlayImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(height: 200)
+                                        .clipped()
+                                        .cornerRadius(12)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.green.opacity(0.5), lineWidth: 2)
+                                )
+
+                                // Color legend
+                                HStack(spacing: 16) {
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color.green).frame(width: 12, height: 12)
+                                        Text("Vegetation").font(.caption2).foregroundColor(.white)
+                                    }
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color.brown).frame(width: 12, height: 12)
+                                        Text("Dirt").font(.caption2).foregroundColor(.white)
+                                    }
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color.gray).frame(width: 12, height: 12)
+                                        Text("Road").font(.caption2).foregroundColor(.white)
+                                    }
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color.blue).frame(width: 12, height: 12)
+                                        Text("Sidewalk").font(.caption2).foregroundColor(.white)
+                                    }
+                                }
+                            } else {
+                                Text("Enable camera preview to see segmentation overlay")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .padding()
+                            }
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(15)
+                        .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.green.opacity(0.4), lineWidth: 1))
+                    }
+
                     // Object Detection Display (Dynamic)
                     if let object = caneController.detectedObject {
                         VStack(alignment: .leading, spacing: 12) {
@@ -572,6 +658,23 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background((caneController.showCameraPreview ? Color.purple : Color.teal).opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+
+                            // Toggle Terrain Debug
+                            Button(action: {
+                                caneController.toggleTerrainDebugMode()
+                            }) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: caneController.terrainDebugMode ? "leaf.circle.fill" : "leaf.circle")
+                                        .font(.title3)
+                                    Text(caneController.terrainDebugMode ? "Debug ON" : "Terrain")
+                                        .font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background((caneController.terrainDebugMode ? Color.green : Color.gray).opacity(0.8))
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
@@ -861,11 +964,41 @@ struct ContentView: View {
             return .green    // Clear
         }
     }
+
+    @ViewBuilder
+    private func terrainZoneBar(label: String, coverage: Float) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.white)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .bottom) {
+                    // Background
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: geometry.size.width, height: 60)
+                        .cornerRadius(4)
+
+                    // Fill based on coverage
+                    Rectangle()
+                        .fill(coverage > 0.15 ? Color.orange : Color.green)
+                        .frame(width: geometry.size.width, height: 60 * CGFloat(coverage))
+                        .cornerRadius(4)
+                }
+            }
+            .frame(height: 60)
+
+            Text("\(Int(coverage * 100))%")
+                .font(.caption2)
+                .foregroundColor(.white)
+        }
+    }
 }
 
 #Preview {
     let espBT = ESPBluetoothManager()
     let controller = SmartCaneController()
     controller.initialize(espBluetooth: espBT)
-    return ContentView(espBluetooth: espBT, caneController: controller)
+    return ContentView(caneController: controller, espBluetooth: espBT)
 }
