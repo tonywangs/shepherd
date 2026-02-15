@@ -791,8 +791,10 @@ struct ContentView: View {
                 // Center Display
                 VStack(spacing: 8) {
                     Text(caneController.steeringCommandText)
-                        .font(.system(size: 28, weight: .bold))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundColor(caneController.steeringColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     // Motor Intensity Display
                     Text("Power: \(Int(caneController.motorIntensity))/255")
