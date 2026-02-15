@@ -172,7 +172,8 @@ class SmartCaneController: ObservableObject {
         setupVapiSubscriptions()
 
         // Initialize GPS navigation
-        let routeService = RouteService(googleApiKey: Secrets.googleAPIKey)
+        let routeService = RouteService(googleApiKey: Secrets.googleAPIKey,
+                                         openRouteServiceApiKey: Secrets.openRouteServiceAPIKey)
         navigationManager = NavigationManager()
         navigationManager?.initialize(routeService: routeService, voiceManager: voiceManager)
         print("[Controller] NavigationManager initialized")
