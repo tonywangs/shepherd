@@ -4,7 +4,7 @@
 //
 //  Reads a Nintendo Switch Joy-Con (or any MFi controller) paired via
 //  iOS Settings.  Left stick X axis overrides autonomous steering.
-//  Joystick centered → autonomous mode resumes.
+//  Any button = emergency kill. Joystick centered → autonomous mode resumes.
 //
 
 import Foundation
@@ -15,12 +15,13 @@ import GameController
 class GameControllerManager: ObservableObject {
     /// nil = no override (autonomous), -1…+1 = manual steering
     @Published var overrideSteer: Float? = nil
+    /// true = emergency stop, forces motor to 0
+    @Published var killMotor: Bool = false
     @Published var isConnected: Bool = false
 
     private let deadzone: Float = 0.15
 
     init() {
-        // Pick up controllers already connected before launch
         if let controller = GCController.controllers().first {
             configureController(controller)
         }
@@ -29,8 +30,6 @@ class GameControllerManager: ObservableObject {
             forName: .GCControllerDidConnect,
             object: nil, queue: .main
         ) { [weak self] _ in
-            // queue: .main guarantees we're on the main thread;
-            // re-read the controllers list to avoid sending non-Sendable objects
             MainActor.assumeIsolated {
                 guard let self, let controller = GCController.controllers().last else { return }
                 self.configureController(controller)
@@ -44,6 +43,7 @@ class GameControllerManager: ObservableObject {
             guard let self else { return }
             self.isConnected = false
             self.overrideSteer = nil
+            self.killMotor = false
             print("[GameController] Disconnected")
         }
     }
@@ -52,28 +52,39 @@ class GameControllerManager: ObservableObject {
         isConnected = true
         print("[GameController] Connected: \(controller.vendorName ?? "Unknown")")
 
-        guard let gamepad = controller.extendedGamepad else {
-            print("[GameController] No extended gamepad profile — trying micro gamepad")
-            // Joy-Con in single mode may present as microGamepad
-            configureMicroGamepad(controller)
-            return
-        }
+        // Log available profiles
+        if controller.extendedGamepad != nil { print("[GameController] Profile: extendedGamepad") }
+        if controller.microGamepad != nil { print("[GameController] Profile: microGamepad") }
 
-        gamepad.leftThumbstick.xAxis.valueChangedHandler = { [weak self] _, value in
-            Task { @MainActor in
-                self?.handleStickInput(value)
+        // --- Stick input: use Y axis (Joy-Con held sideways, so physical left/right = Y axis) ---
+        if let gamepad = controller.extendedGamepad {
+            gamepad.leftThumbstick.yAxis.valueChangedHandler = { [weak self] _, value in
+                Task { @MainActor in self?.handleStickInput(value) }
+            }
+        } else if let micro = controller.microGamepad {
+            micro.dpad.yAxis.valueChangedHandler = { [weak self] _, value in
+                Task { @MainActor in self?.handleStickInput(value) }
             }
         }
-    }
 
-    private func configureMicroGamepad(_ controller: GCController) {
-        guard let micro = controller.microGamepad else {
-            print("[GameController] No gamepad profile available")
-            return
-        }
-        micro.dpad.xAxis.valueChangedHandler = { [weak self] _, value in
-            Task { @MainActor in
-                self?.handleStickInput(value)
+        // --- Kill button: attach to EVERY button via physicalInputProfile ---
+        // This covers face buttons, shoulder buttons, triggers, SL/SR — regardless of profile
+        let profile = controller.physicalInputProfile
+        let buttonNames = profile.buttons.keys.sorted()
+        print("[GameController] Available buttons: \(buttonNames)")
+
+        for (name, button) in profile.buttons {
+            // Skip directional inputs — those are for steering, not kill
+            if name.contains("Direction") { continue }
+
+            button.pressedChangedHandler = { [weak self] _, _, pressed in
+                Task { @MainActor in
+                    if pressed {
+                        print("[GameController] KILL pressed: \(name)")
+                    }
+                    self?.killMotor = pressed
+                    if pressed { self?.overrideSteer = 0 }
+                }
             }
         }
     }

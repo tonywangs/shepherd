@@ -562,12 +562,21 @@ class SmartCaneController: ObservableObject {
     private func updateESPMotor(steering: SteeringDecision, zones: ObstacleZones) {
         guard let esp = espBluetooth else { return }
 
+        // Emergency kill: any Joy-Con face button forces motor to 0
+        if gameController?.killMotor == true {
+            esp.angle = 0
+            esp.distance = 500
+            esp.mode = 0
+            motorIntensity = 0
+            return
+        }
+
         let magnitude = esp.steeringMagnitude  // default 1.0, UI slider
         let baseScale = esp.motorBaseScale     // default 80, UI slider
         let closestDist = zones.closestDistance ?? 5.0
 
         // Joy-Con override: use manual input when joystick is active
-        let command = gameController?.overrideSteer ?? steering.command
+        let command = (gameController?.overrideSteer).map { $0 * 2.5 } ?? steering.command
 
         // Field 1: command scaled to ESP32's input range.
         // ESP32 divides by 255 to normalize. baseScale × magnitude sets the ceiling.
