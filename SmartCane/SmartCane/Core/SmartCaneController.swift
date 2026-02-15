@@ -53,8 +53,8 @@ class SmartCaneController: ObservableObject {
     @Published var vapiError: String?
 
     // Steering tuning parameters (live-adjustable via UI)
-    @Published var temporalAlpha: Float = 0.08
-    @Published var smoothingAlpha: Float = 0.2
+    @Published var temporalAlpha: Float = 0.250
+    @Published var smoothingAlpha: Float = 0.50
     @Published var centerDeadband: Float = 0.15
     @Published var lateralDeadband: Float = 0.2
 

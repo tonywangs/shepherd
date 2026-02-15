@@ -16,8 +16,8 @@ struct SteeringDecision {
 }
 
 struct SteeringTuning {
-    var temporalAlpha: Float = 0.08      // EMA memory speed
-    var smoothingAlpha: Float = 0.2       // Output smoothing speed
+    var temporalAlpha: Float = 0.250      // EMA memory speed
+    var smoothingAlpha: Float = 0.50       // Output smoothing speed
     var centerDeadband: Float = 0.15      // meters
     var lateralDeadband: Float = 0.2      // meters
 }
