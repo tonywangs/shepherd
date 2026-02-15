@@ -37,9 +37,16 @@ struct TerrainObstacles {
 // MARK: - SurfaceClassifier
 
 class SurfaceClassifier {
-    // Green detection thresholds
+    // RGB green detection thresholds (works well in good lighting)
     private let greenDominance: Float = 20  // G must exceed R and B by this much
     private let minGreen: Float = 50        // Minimum green channel value
+
+    // HSV green detection thresholds (robust to low light / night)
+    private let hueMin: Float = 60          // Green hue range start (degrees)
+    private let hueMax: Float = 160         // Green hue range end (degrees)
+    private let satMin: Float = 0.12        // Low threshold to catch desaturated night grass
+    private let valMin: Float = 0.06        // Very low — just above pitch black
+
     private let sampleStep = 8              // Sample every 8th pixel for performance
 
     init() {
@@ -182,9 +189,43 @@ class SurfaceClassifier {
         )
     }
 
-    /// Simple green check: green channel clearly dominates red and blue.
+    /// Detect green using both RGB dominance and HSV hue analysis.
+    /// A pixel is green if EITHER method fires — RGB catches bright/saturated greens,
+    /// HSV catches dark/desaturated greens at night.
     private func isGreen(r: Float, g: Float, b: Float) -> Bool {
-        return g > (r + greenDominance) && g > (b + greenDominance) && g > minGreen
+        // Method 1: RGB — green channel clearly dominates (good in daylight)
+        let rgbGreen = g > (r + greenDominance) && g > (b + greenDominance) && g > minGreen
+
+        // Method 2: HSV — hue in green range regardless of brightness
+        let rN = max(0, min(r, 255)) / 255.0
+        let gN = max(0, min(g, 255)) / 255.0
+        let bN = max(0, min(b, 255)) / 255.0
+
+        let cMax = max(rN, gN, bN)
+        let cMin = min(rN, gN, bN)
+        let delta = cMax - cMin
+
+        let hsvGreen: Bool
+        if delta < 0.001 || cMax < valMin {
+            // Achromatic (gray/black) — not green
+            hsvGreen = false
+        } else {
+            let saturation = delta / cMax
+            let hue: Float
+            if cMax == gN {
+                hue = 60.0 * (((bN - rN) / delta) + 2.0)
+            } else if cMax == rN {
+                hue = 60.0 * (((gN - bN) / delta).truncatingRemainder(dividingBy: 6.0))
+            } else {
+                hue = 60.0 * (((rN - gN) / delta) + 4.0)
+            }
+            let hueNorm = hue < 0 ? hue + 360.0 : hue
+            hsvGreen = hueNorm >= hueMin && hueNorm <= hueMax
+                    && saturation >= satMin
+                    && cMax >= valMin
+        }
+
+        return rgbGreen || hsvGreen
     }
 
     /// Convert the boolean green-pixel grid into an MLMultiArray for renderTerrainOverlay.
