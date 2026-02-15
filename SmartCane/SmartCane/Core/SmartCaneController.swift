@@ -65,6 +65,7 @@ class SmartCaneController: ObservableObject {
     private var surfaceClassifier: SurfaceClassifier?
     private var espBluetooth: ESPBluetoothManager?
     var vapiManager: VapiManager?
+    private var gameController: GameControllerManager?
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
@@ -124,6 +125,10 @@ class SmartCaneController: ObservableObject {
         } else {
             print("[Controller] Terrain classification unavailable (model not loaded)")
         }
+
+        // Initialize game controller manager (Joy-Con override)
+        gameController = GameControllerManager()
+        print("[Controller] Game controller manager initialized")
 
         // Monitor device orientation
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
@@ -511,6 +516,8 @@ class SmartCaneController: ObservableObject {
 
     private func checkFrameStaleness() {
         guard isSystemActive else { return }
+        // Don't zero steering while Joy-Con is actively overriding
+        guard gameController?.overrideSteer == nil else { return }
 
         let elapsed = Date().timeIntervalSince(lastFrameTime)
         guard elapsed > frameStaleThreshold else { return }
@@ -538,10 +545,13 @@ class SmartCaneController: ObservableObject {
         let baseScale = esp.motorBaseScale     // default 80, UI slider
         let closestDist = zones.closestDistance ?? 5.0
 
+        // Joy-Con override: use manual input when joystick is active
+        let command = gameController?.overrideSteer ?? steering.command
+
         // Field 1: command scaled to ESP32's input range.
         // ESP32 divides by 255 to normalize. baseScale × magnitude sets the ceiling.
         // e.g. baseScale=80 × magnitude=1.0 × command=1.0 → 80 → inputNorm=0.31 → PWM≈80
-        let steer = steering.command * baseScale * magnitude
+        let steer = command * baseScale * magnitude
 
         // Field 2: haptic proximity (closer = faster pulses on ESP32)
         let hapticDist = min(500.0, closestDist * 125.0)
