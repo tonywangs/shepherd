@@ -12,11 +12,10 @@ static constexpr int kMotorReversePin = 2;
 // Taptic pulse shape from the original Taptic.ino demo.
 static constexpr uint32_t kCycleMicros = 3840;
 static constexpr uint8_t kPulseCycles = 2;
-static constexpr float multConst = 5;
 
 // Motor behavior tuning (adjust on hardware).
 static constexpr float kMotorInputScale = 1.0f / 255.0f;  // packet speed units -> normalized input
-static constexpr float kMotorTauSeconds = 0.5f;           // slightly faster exponential decay time constant
+static constexpr float kMotorTauSeconds = 0.55f;           // slightly faster exponential decay time constant
 static constexpr uint32_t kPacketTimeoutMs = 250;          // if packets stop arriving, force speed input to zero
 
 portMUX_TYPE gDataMux = portMUX_INITIALIZER_UNLOCKED;
@@ -150,7 +149,7 @@ void motorTask(void* parameter) {
     const float inputNorm = constrain(speedInput * kMotorInputScale, -1.0f, 1.0f);
     motorState += dt * (inputNorm - (motorState / kMotorTauSeconds));
 
-    const float outputNorm = constrain(motorState * multConst / kMotorTauSeconds, -1.0f, 1.0f);
+    const float outputNorm = constrain(motorState / kMotorTauSeconds, -1.0f, 1.0f);
     const uint8_t pwm = capPwm255(fabsf(outputNorm) * 255.0f);
 
     if (outputNorm >= 0.0f) {

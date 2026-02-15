@@ -702,13 +702,6 @@ struct ContentView: View {
 
                     // Debug Info - Enhanced
                     HStack(spacing: 8) {
-                        Image(systemName: "speedometer")
-                            .font(.caption)
-                            .foregroundColor(.cyan)
-                        Text("Latency: \(String(format: "%.1f", caneController.latencyMs))ms")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-
                         Spacer()
 
                         if caneController.isSystemActive {

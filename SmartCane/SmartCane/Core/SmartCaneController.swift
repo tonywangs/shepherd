@@ -26,7 +26,6 @@ class SmartCaneController: ObservableObject {
     @Published var motorIntensity: Float = 0.0 // 0-255, actual motor power being sent
     @Published var detectedObject: String? = nil
     @Published var detectedObjectDistance: Float? = nil
-    @Published var latencyMs: Double = 0.0
 
     // Depth visualization
     @Published var depthVisualization: UIImage? = nil
@@ -54,7 +53,7 @@ class SmartCaneController: ObservableObject {
 
     // Steering tuning parameters (live-adjustable via UI)
     @Published var temporalAlpha: Float = 0.08
-    @Published var smoothingAlpha: Float = 0.2
+    @Published var smoothingAlpha: Float = 0.35
     @Published var centerDeadband: Float = 0.15
     @Published var lateralDeadband: Float = 0.2
 
@@ -67,7 +66,6 @@ class SmartCaneController: ObservableObject {
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
     private var steeringEngine: SteeringEngine?
-    private var bleManager: BLEManager?
     private var hapticManager: HapticManager?
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
@@ -156,9 +154,6 @@ class SmartCaneController: ObservableObject {
             print("[Controller] WARNING: DepthSensor initialization failed: \(error)")
         }
 
-        bleManager = BLEManager()
-        print("[Controller] BLEManager initialized")
-
         hapticManager = HapticManager()
         print("[Controller] HapticManager initialized")
 
@@ -201,9 +196,6 @@ class SmartCaneController: ObservableObject {
         depthSensor?.start()
         isARRunning = true
 
-        // Start BLE scanning
-        bleManager?.startScanning()
-
         // Initialize haptics
         hapticManager?.initialize()
 
@@ -224,9 +216,6 @@ class SmartCaneController: ObservableObject {
         // Stop depth sensing
         depthSensor?.stop()
         isARRunning = false
-
-        // Send neutral command
-        bleManager?.sendSteeringCommand(0)
 
         // Zero out ESP32 motor
         espBluetooth?.angle = 0
@@ -266,13 +255,10 @@ class SmartCaneController: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // 2. BLE connection status
-        bleManager?.$isConnected
+        // 2. ESP32 connection status
+        espBluetooth?.$connectedName
+            .map { $0 != nil }
             .assign(to: &$isConnected)
-
-        // 3. Monitor latency
-        bleManager?.$lastLatencyMs
-            .assign(to: &$latencyMs)
     }
 
     private func setupVapiSubscriptions() {
@@ -371,7 +357,8 @@ class SmartCaneController: ObservableObject {
             temporalAlpha: temporalAlpha,
             smoothingAlpha: smoothingAlpha,
             centerDeadband: centerDeadband,
-            lateralDeadband: lateralDeadband
+            lateralDeadband: lateralDeadband,
+            centerBoundary: espBluetooth?.centerBoundary ?? 0.33
         )
         guard let steering = steeringEngine?.computeSteering(
             zones: zones,
@@ -389,14 +376,7 @@ class SmartCaneController: ObservableObject {
         // Update UI
         steeringCommand = steering.command
 
-        // Step 3: Send to ESP32 via BLE (old protocol, quantize to Int8)
-        let quantizedCommand: Int8
-        if steering.command < -0.3 { quantizedCommand = -1 }
-        else if steering.command > 0.3 { quantizedCommand = 1 }
-        else { quantizedCommand = 0 }
-        bleManager?.sendSteeringCommand(quantizedCommand)
-
-        // Step 3b: Send to ESP32 via 12-byte protocol
+        // Step 3: Send to ESP32 via 12-byte protocol
         updateESPMotor(steering: steering, zones: zones)
 
         // Step 4: Update haptics based on closest obstacle
@@ -560,7 +540,6 @@ class SmartCaneController: ObservableObject {
         // Safe fallback: stop all motor output
         steeringCommand = 0.0
         motorIntensity = 0.0
-        bleManager?.sendSteeringCommand(0)
         espBluetooth?.angle = 0
         espBluetooth?.distance = 500
         espBluetooth?.mode = 0
