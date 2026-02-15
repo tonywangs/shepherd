@@ -51,16 +51,8 @@ class SmartCaneController: ObservableObject {
     @Published var vapiTranscript: String?
     @Published var vapiError: String?
 
-    // Steering tuning parameters (live-adjustable via UI)
-    @Published var temporalAlpha: Float = 0.08
-    @Published var smoothingAlpha: Float = 0.35
-    @Published var centerDeadband: Float = 0.15
-    @Published var lateralDeadband: Float = 0.2
-
-    // EMA state readouts (read-only for UI)
-    @Published var emaLeftDist: Float = 0.0
-    @Published var emaRightDist: Float = 0.0
-    @Published var emaLateralBias: Float = 0.0
+    // Gap-seeking debug readouts (read-only for UI)
+    @Published var gapDirection: Float = 0.0
 
     // Subsystems
     private var depthSensor: DepthSensor?
@@ -352,29 +344,17 @@ class SmartCaneController: ObservableObject {
         centerDistance = zones.centerDistance
         rightDistance = zones.rightDistance
 
-        // Step 2: Compute steering decision with tuning parameters
-        let tuning = SteeringTuning(
-            temporalAlpha: temporalAlpha,
-            smoothingAlpha: smoothingAlpha,
-            centerDeadband: centerDeadband,
-            lateralDeadband: lateralDeadband,
-            centerBoundary: espBluetooth?.centerBoundary ?? 0.33
-        )
+        // Step 2: Gap-seeking steering — steer toward the clearest path
         guard let steering = steeringEngine?.computeSteering(
             zones: zones,
             sensitivity: espBluetooth?.steeringSensitivity ?? 2.0,
-            tuning: tuning
+            proximityExponent: espBluetooth?.proximityExponent ?? 0.6,
+            closeFloor: espBluetooth?.closeFloor ?? 0.5
         ) else { return }
-
-        // Read back EMA state for UI display
-        if let emaState = steeringEngine?.currentEMAState {
-            emaLeftDist = emaState.left
-            emaRightDist = emaState.right
-            emaLateralBias = emaState.bias
-        }
 
         // Update UI
         steeringCommand = steering.command
+        gapDirection = zones.gapDirection
 
         // Step 3: Send to ESP32 via 12-byte protocol
         updateESPMotor(steering: steering, zones: zones)
@@ -547,40 +527,33 @@ class SmartCaneController: ObservableObject {
         steeringEngine?.reset()
     }
 
-    /// Map LiDAR steering + obstacle proximity into ESP32 12-byte motor packet.
-    /// Sets espBluetooth.angle/distance/mode; the existing 10Hz timer auto-sends.
+    /// Map steering decision into ESP32 12-byte motor packet.
+    /// ESP32 normalizes field 1 by dividing by 255 (kMotorInputScale = 1/255).
+    /// So we must send values on a ±255 scale for full motor range.
+    /// The leaky integrator (tau=0.55s) smooths the input on the ESP32 side.
     private func updateESPMotor(steering: SteeringDecision, zones: ObstacleZones) {
         guard let esp = espBluetooth else { return }
 
-        // Closest obstacle distance across all zones
-        let closestDist = [zones.leftDistance, zones.centerDistance, zones.rightDistance]
-            .compactMap { $0 }
-            .min() ?? 5.0
+        let magnitude = esp.steeringMagnitude  // default 1.0, UI slider
+        let baseScale = esp.motorBaseScale     // default 80, UI slider
+        let closestDist = zones.closestDistance ?? 5.0
 
-        // Get tuning parameters
-        let sensitivity = esp.steeringSensitivity
-        let magnitude = esp.steeringMagnitude
+        // Field 1: command scaled to ESP32's input range.
+        // ESP32 divides by 255 to normalize. baseScale × magnitude sets the ceiling.
+        // e.g. baseScale=80 × magnitude=1.0 × command=1.0 → 80 → inputNorm=0.31 → PWM≈80
+        let steer = steering.command * baseScale * magnitude
 
-        // Speed: command direction × proximity-based intensity
-        // Base intensity scales from 0.2m to sensitivity threshold
-        let rangeMeters = sensitivity - 0.2
-        let normalizedDist = max(0.0, min(1.0, (closestDist - 0.2) / rangeMeters))
-        let baseIntensity = 255.0 * (1.0 - normalizedDist)
-        let intensity = baseIntensity * magnitude
-        let finalIntensity = min(255.0, max(0.0, Float(intensity)))
-        let speed = steering.command * finalIntensity
-
-        // Update published motor intensity for UI display
-        motorIntensity = finalIntensity
-
-        // Haptic distance: closest obstacle in meters × 125, capped at 500
+        // Field 2: haptic proximity (closer = faster pulses on ESP32)
         let hapticDist = min(500.0, closestDist * 125.0)
 
-        esp.angle = speed
+        // UI: approximate steady-state PWM the motor will reach
+        motorIntensity = min(255.0, fabsf(steer))
+
+        esp.angle = steer
         esp.distance = hapticDist
         esp.mode = 1
 
-        print("[Controller] ESP32 -> speed: \(String(format: "%.1f", speed)), intensity: \(String(format: "%.1f", finalIntensity)), hapticDist: \(String(format: "%.1f", hapticDist)), mode: 1")
+        print("[Controller] ESP32 -> field1: \(String(format: "%+.1f", steer)), cmd: \(String(format: "%+.2f", steering.command)), gap: \(String(format: "%+.2f", zones.gapDirection)), closest: \(String(format: "%.2f", closestDist))m")
     }
 
     func testVoice() {

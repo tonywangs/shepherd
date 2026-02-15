@@ -20,7 +20,11 @@ struct ObstacleZones {
     let centerHasObstacle: Bool
     let rightHasObstacle: Bool
 
-    // Continuous weighting
+    // Gap-seeking steering: direction of maximum clearance
+    let gapDirection: Float        // -1.0 (gap is left) to +1.0 (gap is right), 0.0 = center
+    let closestDistance: Float?    // nearest obstacle across all zones (meters)
+
+    // Legacy (kept for UI/debug display)
     let lateralBias: Float             // -1.0 (obstacles biased left) to +1.0 (biased right)
     let averageLeftDistance: Float?     // avg depth of left-half pixels (x < 0.5 in display coords)
     let averageRightDistance: Float?    // avg depth of right-half pixels (x >= 0.5 in display coords)
@@ -30,6 +34,13 @@ class ObstacleDetector {
     // Detection parameters
     private let maxDetectionRange: Float = 4.0  // meters (extended for better forward visibility)
     private let minDetectionRange: Float = 0.2  // meters (too close to be useful)
+
+    // Gap profiling: divide horizontal FOV into columns to find clearest path
+    private let numGapColumns = 16
+
+    // Running average buffer for gapDirection (smooths depth noise across frames)
+    private let gapHistorySize = 5
+    private var gapHistory: [Float] = []
 
     // Zone division (in camera frame coordinates)
     // Camera is 16:9, we divide horizontally into 3 zones
@@ -75,7 +86,7 @@ class ObstacleDetector {
         }
     }
 
-    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait) -> ObstacleZones {
+    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait, terrainObstacles: TerrainObstacles? = nil) -> ObstacleZones {
         let depthMap = frame.depthMap
 
         // Lock pixel buffer for reading
@@ -89,6 +100,7 @@ class ObstacleDetector {
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
             return ObstacleZones(leftDistance: nil, centerDistance: nil, rightDistance: nil,
                                leftHasObstacle: false, centerHasObstacle: false, rightHasObstacle: false,
+                               gapDirection: 0.0, closestDistance: nil,
                                lateralBias: 0.0, averageLeftDistance: nil, averageRightDistance: nil)
         }
 
@@ -107,13 +119,17 @@ class ObstacleDetector {
             flipHorizontal = false
         }
 
-        // Continuous weighting accumulators
+        // Continuous weighting accumulators (legacy, kept for UI)
         var lateralWeightSum: Float = 0.0
         var totalInverseDepthSum: Float = 0.0
         var leftHalfDepthSum: Float = 0.0
         var leftHalfCount: Int = 0
         var rightHalfDepthSum: Float = 0.0
         var rightHalfCount: Int = 0
+
+        // Gap profiling: average depth per horizontal column (display coordinates)
+        var columnDepthSum = [Float](repeating: 0.0, count: numGapColumns)
+        var columnCount = [Int](repeating: 0, count: numGapColumns)
 
         // Sample zones
         var leftMinDist: Float = Float.greatestFiniteMagnitude
@@ -161,6 +177,12 @@ class ObstacleDetector {
                     rightHalfCount += 1
                 }
 
+                // Gap profiling: accumulate depth per column in display coordinates
+                let displayX = flipHorizontal ? (1.0 - normalizedX) : normalizedX
+                let colIdx = min(numGapColumns - 1, max(0, Int(displayX * Float(numGapColumns))))
+                columnDepthSum[colIdx] += depth
+                columnCount[colIdx] += 1
+
                 // Categorize into zones using transformed coordinates
                 if zones.left.contains(normalizedX) {
                     leftMinDist = min(leftMinDist, depth)
@@ -177,7 +199,7 @@ class ObstacleDetector {
         let center = centerMinDist.isFinite ? centerMinDist : nil
         let right = rightMinDist.isFinite ? rightMinDist : nil
 
-        // Compute continuous weighting fields
+        // Compute continuous weighting fields (legacy)
         let computedLateralBias: Float
         if totalInverseDepthSum > 0 {
             computedLateralBias = max(-1.0, min(1.0, lateralWeightSum / totalInverseDepthSum))
@@ -187,6 +209,52 @@ class ObstacleDetector {
         let avgLeftDist: Float? = leftHalfCount > 0 ? leftHalfDepthSum / Float(leftHalfCount) : nil
         let avgRightDist: Float? = rightHalfCount > 0 ? rightHalfDepthSum / Float(rightHalfCount) : nil
 
+        // Gap profiling: find the direction with maximum average depth (most clearance)
+        // 1. Compute average depth per column
+        var columnAvg = [Float](repeating: 0.0, count: numGapColumns)
+        for i in 0..<numGapColumns {
+            columnAvg[i] = columnCount[i] > 0 ? columnDepthSum[i] / Float(columnCount[i]) : 0.0
+        }
+
+        // 2. Smooth columns with [0.25, 0.5, 0.25] kernel to reduce single-pixel noise
+        var smoothedColumns = [Float](repeating: 0.0, count: numGapColumns)
+        for i in 0..<numGapColumns {
+            let l = i > 0 ? columnAvg[i - 1] : columnAvg[i]
+            let c = columnAvg[i]
+            let r = i < numGapColumns - 1 ? columnAvg[i + 1] : columnAvg[i]
+            smoothedColumns[i] = 0.25 * l + 0.5 * c + 0.25 * r
+        }
+
+        // 3. Find the column with maximum clearance (deepest average depth = the gap)
+        var bestColumn = numGapColumns / 2  // default to center
+        var bestDepth: Float = 0.0
+        for i in 0..<numGapColumns {
+            if smoothedColumns[i] > bestDepth {
+                bestDepth = smoothedColumns[i]
+                bestColumn = i
+            }
+        }
+
+        // 4. Convert column index to normalized direction: -1.0 (left) to +1.0 (right)
+        let rawGapDirection: Float
+        if bestDepth > 0 {
+            rawGapDirection = (Float(bestColumn) / Float(numGapColumns - 1) - 0.5) * 2.0
+        } else {
+            rawGapDirection = 0.0  // No valid depth data
+        }
+
+        // 5. Smooth gapDirection with running average to eliminate frame-to-frame jitter.
+        //    Without this, depth noise causes gapDirection to flip sign between frames,
+        //    and the ESP32's leaky integrator never ramps up.
+        gapHistory.append(rawGapDirection)
+        if gapHistory.count > gapHistorySize {
+            gapHistory.removeFirst()
+        }
+        let computedGapDirection = gapHistory.reduce(0.0, +) / Float(gapHistory.count)
+
+        // Closest obstacle across all zones
+        let closest = [left, center, right].compactMap { $0 }.min()
+
         return ObstacleZones(
             leftDistance: left,
             centerDistance: center,
@@ -194,6 +262,8 @@ class ObstacleDetector {
             leftHasObstacle: left != nil,
             centerHasObstacle: center != nil,
             rightHasObstacle: right != nil,
+            gapDirection: computedGapDirection,
+            closestDistance: closest,
             lateralBias: computedLateralBias,
             averageLeftDistance: avgLeftDist,
             averageRightDistance: avgRightDist
