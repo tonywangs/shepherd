@@ -7,7 +7,7 @@
 - Mac with Xcode 26.2 installed
 - iPhone 14 Pro Max (or any iPhone with LiDAR)
 - Arduino IDE 2.x installed
-- Hardware components assembled (see HARDWARE_SETUP.md)
+- Hardware components assembled (see [Hardware/Assembly Instructions.md](Hardware/Assembly%20Instructions.md))
 
 ## Part 1: Create iOS Project (15 minutes)
 
@@ -208,7 +208,7 @@ Re-upload to ESP32.
 
 ### 1. Mount to Cane
 
-- Follow HARDWARE_SETUP.md mechanical assembly
+- Follow [Hardware/Assembly Instructions.md](Hardware/Assembly%20Instructions.md) for mechanical assembly
 - Ensure omni wheel contacts ground lightly
 - iPhone mounted securely at handle
 
