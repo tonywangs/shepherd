@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var caneController = SmartCaneController()
+    @ObservedObject var caneController: SmartCaneController
     @ObservedObject var espBluetooth: ESPBluetoothManager
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.verticalSizeClass) var verticalSizeClass
@@ -625,8 +625,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            print("[ContentView] View appeared, initializing controller...")
-            caneController.initialize(espBluetooth: espBluetooth)
+            print("[ContentView] View appeared")
+            // Initialization now happens in SmartCaneApp.onAppear
         }
     }
 
@@ -864,5 +864,8 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(espBluetooth: ESPBluetoothManager())
+    let espBT = ESPBluetoothManager()
+    let controller = SmartCaneController()
+    controller.initialize(espBluetooth: espBT)
+    return ContentView(espBluetooth: espBT, caneController: controller)
 }

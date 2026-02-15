@@ -15,6 +15,13 @@ struct SteeringDecision {
     let reason: String  // For debugging
 }
 
+struct SteeringTuning {
+    var temporalAlpha: Float = 0.08      // EMA memory speed
+    var smoothingAlpha: Float = 0.2       // Output smoothing speed
+    var centerDeadband: Float = 0.15      // meters
+    var lateralDeadband: Float = 0.2      // meters
+}
+
 class SteeringEngine {
     // Tuning parameters (adjust during testing)
     private let criticalThreshold: Float = 0.6  // meters - aggressive avoidance
@@ -23,23 +30,58 @@ class SteeringEngine {
     private var smoothedCommand: Float = 0.0
     private let smoothingAlpha: Float = 0.2  // 20% new frame, 80% previous
 
-    func computeSteering(zones: ObstacleZones, sensitivity: Float = 2.0) -> SteeringDecision {
-        let raw = computeRawSteering(zones: zones, sensitivity: sensitivity)
-        return applySmoothing(raw)
+    // Temporal EMA of zone data for tiebreaking
+    private var emaLeftDist: Float = 0.0
+    private var emaRightDist: Float = 0.0
+    private var emaLateralBias: Float = 0.0
+    private var emaInitialized: Bool = false
+
+    func computeSteering(zones: ObstacleZones, sensitivity: Float = 2.0, tuning: SteeringTuning = SteeringTuning()) -> SteeringDecision {
+        updateTemporalEMA(zones: zones, sensitivity: sensitivity, tuning: tuning)
+        let raw = computeRawSteering(zones: zones, sensitivity: sensitivity, tuning: tuning)
+        return applySmoothing(raw, tuning: tuning)
     }
 
     func reset() {
         smoothedCommand = 0.0
+        emaLeftDist = 0.0
+        emaRightDist = 0.0
+        emaLateralBias = 0.0
+        emaInitialized = false
     }
 
-    private func applySmoothing(_ decision: SteeringDecision) -> SteeringDecision {
+    var currentEMAState: (left: Float, right: Float, bias: Float) {
+        (emaLeftDist, emaRightDist, emaLateralBias)
+    }
+
+    private func updateTemporalEMA(zones: ObstacleZones, sensitivity: Float, tuning: SteeringTuning) {
+        // Use sensitivity threshold as default value when zone reports nil (treating "clear" as "far")
+        let leftVal = zones.averageLeftDistance ?? sensitivity
+        let rightVal = zones.averageRightDistance ?? sensitivity
+        let biasVal = zones.lateralBias
+
+        if !emaInitialized {
+            // First sample - initialize directly
+            emaLeftDist = leftVal
+            emaRightDist = rightVal
+            emaLateralBias = biasVal
+            emaInitialized = true
+        } else {
+            // Apply EMA: new_ema = alpha * new_value + (1 - alpha) * old_ema
+            emaLeftDist = tuning.temporalAlpha * leftVal + (1.0 - tuning.temporalAlpha) * emaLeftDist
+            emaRightDist = tuning.temporalAlpha * rightVal + (1.0 - tuning.temporalAlpha) * emaRightDist
+            emaLateralBias = tuning.temporalAlpha * biasVal + (1.0 - tuning.temporalAlpha) * emaLateralBias
+        }
+    }
+
+    private func applySmoothing(_ decision: SteeringDecision, tuning: SteeringTuning) -> SteeringDecision {
         // Safety-critical commands bypass smoothing (confidence 1.0 + max magnitude)
         if decision.confidence >= 1.0 && abs(decision.command) >= 1.0 {
             smoothedCommand = decision.command
             return decision
         }
 
-        smoothedCommand = smoothingAlpha * decision.command + (1.0 - smoothingAlpha) * smoothedCommand
+        smoothedCommand = tuning.smoothingAlpha * decision.command + (1.0 - tuning.smoothingAlpha) * smoothedCommand
         return SteeringDecision(
             command: smoothedCommand,
             confidence: decision.confidence,
@@ -47,7 +89,7 @@ class SteeringEngine {
         )
     }
 
-    private func computeRawSteering(zones: ObstacleZones, sensitivity: Float = 2.0) -> SteeringDecision {
+    private func computeRawSteering(zones: ObstacleZones, sensitivity: Float = 2.0, tuning: SteeringTuning) -> SteeringDecision {
         // Priority 1: No obstacles detected at all
         if !zones.centerHasObstacle && !zones.leftHasObstacle && !zones.rightHasObstacle {
             return SteeringDecision(command: 0.0, confidence: 1.0, reason: "Clear path")
@@ -63,12 +105,12 @@ class SteeringEngine {
 
         // --- Center obstacle < 1.0m → ALWAYS steer ---
         if let centerDist = zones.centerDistance, centerDist < 1.0 {
-            let avgLeft = zones.averageLeftDistance ?? sensitivity
-            let avgRight = zones.averageRightDistance ?? sensitivity
+            let avgLeft = emaLeftDist
+            let avgRight = emaRightDist
             let direction: Float
-            if avgLeft > avgRight + 0.15 { direction = -1.0 }
-            else if avgRight > avgLeft + 0.15 { direction = 1.0 }
-            else if abs(zones.lateralBias) > 0.05 { direction = -zones.lateralBias }
+            if avgLeft > avgRight + tuning.centerDeadband { direction = -1.0 }
+            else if avgRight > avgLeft + tuning.centerDeadband { direction = 1.0 }
+            else if abs(emaLateralBias) > 0.05 { direction = -emaLateralBias }
             else { direction = 1.0 }  // absolute fallback: steer right
 
             if centerDist < criticalThreshold {
@@ -88,10 +130,10 @@ class SteeringEngine {
 
         // Handle ambiguous bias (wall scenario) — tie-breaker
         if abs(zones.lateralBias) < 0.1 {
-            let avgLeft = zones.averageLeftDistance ?? sensitivity
-            let avgRight = zones.averageRightDistance ?? sensitivity
-            if avgLeft > avgRight + 0.2 { steerDirection = -1.0 }
-            else if avgRight > avgLeft + 0.2 { steerDirection = 1.0 }
+            let avgLeft = emaLeftDist
+            let avgRight = emaRightDist
+            if avgLeft > avgRight + tuning.lateralDeadband { steerDirection = -1.0 }
+            else if avgRight > avgLeft + tuning.lateralDeadband { steerDirection = 1.0 }
             else { steerDirection = 0.3 }  // slight right default
         }
 

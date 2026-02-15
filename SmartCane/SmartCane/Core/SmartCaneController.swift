@@ -42,6 +42,17 @@ class SmartCaneController: ObservableObject {
     @Published var vapiTranscript: String?
     @Published var vapiError: String?
 
+    // Steering tuning parameters (live-adjustable via UI)
+    @Published var temporalAlpha: Float = 0.08
+    @Published var smoothingAlpha: Float = 0.2
+    @Published var centerDeadband: Float = 0.15
+    @Published var lateralDeadband: Float = 0.2
+
+    // EMA state readouts (read-only for UI)
+    @Published var emaLeftDist: Float = 0.0
+    @Published var emaRightDist: Float = 0.0
+    @Published var emaLateralBias: Float = 0.0
+
     // Subsystems
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
@@ -306,11 +317,25 @@ class SmartCaneController: ObservableObject {
         centerDistance = zones.centerDistance
         rightDistance = zones.rightDistance
 
-        // Step 2: Compute steering decision
+        // Step 2: Compute steering decision with tuning parameters
+        let tuning = SteeringTuning(
+            temporalAlpha: temporalAlpha,
+            smoothingAlpha: smoothingAlpha,
+            centerDeadband: centerDeadband,
+            lateralDeadband: lateralDeadband
+        )
         guard let steering = steeringEngine?.computeSteering(
             zones: zones,
-            sensitivity: espBluetooth?.steeringSensitivity ?? 2.0
+            sensitivity: espBluetooth?.steeringSensitivity ?? 2.0,
+            tuning: tuning
         ) else { return }
+
+        // Read back EMA state for UI display
+        if let emaState = steeringEngine?.currentEMAState {
+            emaLeftDist = emaState.left
+            emaRightDist = emaState.right
+            emaLateralBias = emaState.bias
+        }
 
         // Update UI
         steeringCommand = steering.command

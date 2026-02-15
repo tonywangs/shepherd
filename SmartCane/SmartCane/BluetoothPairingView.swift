@@ -10,6 +10,7 @@ import SwiftUI
 
 struct BluetoothPairingView: View {
     @ObservedObject var ble: ESPBluetoothManager
+    @ObservedObject var controller: SmartCaneController
 
     var body: some View {
         NavigationStack {
@@ -105,6 +106,59 @@ struct BluetoothPairingView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // MARK: - Steering Algorithm (Debug)
+                Section("Steering Algorithm (Debug)") {
+                    // Temporal EMA Alpha
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("EMA Memory: \(controller.temporalAlpha, specifier: "%.3f")")
+                        Slider(value: $controller.temporalAlpha, in: 0.02...0.25)
+                        Text("Lower = longer memory, more stable. Higher = faster response.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Output Smoothing Alpha
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Output Smoothing: \(controller.smoothingAlpha, specifier: "%.2f")")
+                        Slider(value: $controller.smoothingAlpha, in: 0.05...0.5)
+                        Text("Lower = smoother steering. Higher = more responsive.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Center Deadband
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Center Deadband: \(controller.centerDeadband, specifier: "%.2f")m")
+                        Slider(value: $controller.centerDeadband, in: 0.05...0.5)
+                        Text("Min L/R difference to pick a side for center obstacles.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Lateral Deadband
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Lateral Deadband: \(controller.lateralDeadband, specifier: "%.2f")m")
+                        Slider(value: $controller.lateralDeadband, in: 0.05...0.5)
+                        Text("Min L/R difference to pick a side for side obstacles.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Live EMA Readout
+                    Divider()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Live EMA State").font(.caption).foregroundStyle(.secondary)
+                        HStack {
+                            Text("L: \(controller.emaLeftDist, specifier: "%.2f")m")
+                            Spacer()
+                            Text("Bias: \(controller.emaLateralBias, specifier: "%.3f")")
+                            Spacer()
+                            Text("R: \(controller.emaRightDist, specifier: "%.2f")m")
+                        }
+                        .font(.system(.caption, design: .monospaced))
+                    }
+                }
             }
             .navigationTitle("ESP32 Bluetooth")
         }
@@ -112,5 +166,7 @@ struct BluetoothPairingView: View {
 }
 
 #Preview {
-    BluetoothPairingView(ble: ESPBluetoothManager())
+    let espBT = ESPBluetoothManager()
+    let controller = SmartCaneController()
+    return BluetoothPairingView(ble: espBT, controller: controller)
 }
