@@ -63,6 +63,11 @@ class SmartCaneController: ObservableObject {
     private var isCameraPreviewInProgress = false
     private var lastCameraPreviewTime: Date = .distantPast
 
+    // Frame watchdog — detects depth pipeline stalls
+    private var lastFrameTime: Date = .distantPast
+    private var frameWatchdogTimer: Timer?
+    private let frameStaleThreshold: TimeInterval = 0.5  // 500ms without a frame = stale
+
     // Computed properties for UI
     var steeringCommandText: String {
         if steeringCommand < -0.1 {
@@ -166,6 +171,9 @@ class SmartCaneController: ObservableObject {
         // Initialize haptics
         hapticManager?.initialize()
 
+        // Start frame watchdog
+        startFrameWatchdog()
+
         // Announce start
         if voiceManager != nil {
             voiceManager?.speak("Smart cane activated")
@@ -195,6 +203,10 @@ class SmartCaneController: ObservableObject {
 
         // Reset steering smoother so next session starts fresh
         steeringEngine?.reset()
+
+        // Stop frame watchdog
+        frameWatchdogTimer?.invalidate()
+        frameWatchdogTimer = nil
 
         // Stop haptics
         hapticManager?.stop()
@@ -279,6 +291,7 @@ class SmartCaneController: ObservableObject {
     private func processDepthFrame(_ frame: DepthFrame) {
         guard isSystemActive else { return }
 
+        lastFrameTime = Date()
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Store depth map and camera image for object detection and preview
@@ -448,6 +461,37 @@ class SmartCaneController: ObservableObject {
         // Calculate processing time
         let processingTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
         print("[Controller] Frame processed in \(String(format: "%.2f", processingTime))ms")
+    }
+
+    // MARK: - Frame Watchdog
+
+    private func startFrameWatchdog() {
+        lastFrameTime = Date()
+        frameWatchdogTimer?.invalidate()
+        frameWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkFrameStaleness()
+            }
+        }
+    }
+
+    private func checkFrameStaleness() {
+        guard isSystemActive else { return }
+
+        let elapsed = Date().timeIntervalSince(lastFrameTime)
+        guard elapsed > frameStaleThreshold else { return }
+
+        print("[Controller] WARNING: Depth frames stale (\(String(format: "%.1f", elapsed))s) — zeroing steering")
+
+        // Safe fallback: stop all motor output
+        steeringCommand = 0.0
+        motorIntensity = 0.0
+        bleManager?.sendSteeringCommand(0)
+        espBluetooth?.angle = 0
+        espBluetooth?.distance = 500
+        espBluetooth?.mode = 0
+        hapticManager?.stop()
+        steeringEngine?.reset()
     }
 
     /// Map LiDAR steering + obstacle proximity into ESP32 12-byte motor packet.
