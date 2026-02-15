@@ -462,12 +462,15 @@ struct ContentView: View {
                             }
 
                             // Per-zone coverage bars
-                            HStack(spacing: 12) {
-                                terrainZoneBar(label: "L", coverage: caneController.terrainLeftCoverage)
-                                terrainZoneBar(label: "C", coverage: caneController.terrainCenterCoverage)
-                                terrainZoneBar(label: "R", coverage: caneController.terrainRightCoverage)
+                            HStack(spacing: 20) {
+                                Spacer()
+                                terrainZoneBar(label: "LEFT", coverage: caneController.terrainLeftCoverage)
+                                terrainZoneBar(label: "CENTER", coverage: caneController.terrainCenterCoverage)
+                                terrainZoneBar(label: "RIGHT", coverage: caneController.terrainRightCoverage)
+                                Spacer()
                             }
-                            .frame(height: 80)
+                            .frame(height: 150)  // Taller to accommodate new design
+                            .padding(.vertical, 8)
 
                             // Segmentation overlay
                             if let overlayImage = caneController.terrainDebugImage {
@@ -967,32 +970,44 @@ struct ContentView: View {
 
     @ViewBuilder
     private func terrainZoneBar(label: String, coverage: Float) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
+            // Label at top
             Text(label)
-                .font(.caption)
+                .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
 
-            GeometryReader { geometry in
-                ZStack(alignment: .bottom) {
-                    // Background
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: geometry.size.width, height: 60)
-                        .cornerRadius(4)
+            // Bar container (fixed size, no GeometryReader)
+            ZStack(alignment: .bottom) {
+                // Background (full height)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 70, height: 100)
 
-                    // Fill based on coverage
-                    Rectangle()
-                        .fill(coverage > 0.15 ? Color.orange : Color.green)
-                        .frame(width: geometry.size.width, height: 60 * CGFloat(coverage))
-                        .cornerRadius(4)
-                }
+                // Filled portion (proportional height)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(coverage > 0.15 ? Color.orange : Color.green.opacity(0.7))
+                    .frame(width: 70, height: max(4, 100 * CGFloat(coverage)))
+
+                // Threshold line at 15%
+                Rectangle()
+                    .fill(Color.red.opacity(0.5))
+                    .frame(width: 70, height: 1)
+                    .offset(y: -15)  // 15% of 100
             }
-            .frame(height: 60)
+            .frame(width: 70, height: 100)
 
-            Text("\(Int(coverage * 100))%")
-                .font(.caption2)
-                .foregroundColor(.white)
+            // Percentage at bottom
+            VStack(spacing: 2) {
+                Text("\(Int(coverage * 100))%")
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundColor(coverage > 0.15 ? .orange : .white)
+
+                Text(coverage > 0.15 ? "TERRAIN" : "clear")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(coverage > 0.15 ? .orange : .gray)
+            }
         }
+        .frame(width: 80)  // Fixed width prevents stacking
     }
 }
 
