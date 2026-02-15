@@ -321,6 +321,9 @@ class SmartCaneController: ObservableObject {
         lastFrameTime = Date()
         let startTime = CFAbsoluteTimeGetCurrent()
 
+        // Update ARKit heading at 60Hz (Layer 1)
+        navigationManager?.headingProvider.updateFromARKit(cameraTransform: frame.cameraTransform)
+
         // Store depth map and camera image for object detection and preview
         latestDepthMap = frame.depthMap
         latestCameraImage = frame.capturedImage
@@ -365,12 +368,22 @@ class SmartCaneController: ObservableObject {
             closeFloor: espBluetooth?.closeFloor ?? 0.5
         ) else { return }
 
+        // Step 2.5: Merge navigation bias (Layer 5 — obstacles always win)
+        var finalCommand = steering.command
+        if let nav = navigationManager, nav.state.isActive {
+            let navBias = nav.biasComputer.navBias
+            let alpha = 1.0 - steering.confidence  // 0 when obstacle close, 1 when clear
+            let beta: Float = 0.3                   // nav weight when path is clear
+            finalCommand = max(-1.0, min(1.0, steering.command + navBias * beta * alpha))
+        }
+
         // Update UI
-        steeringCommand = steering.command
+        steeringCommand = finalCommand
         gapDirection = zones.gapDirection
 
         // Step 3: Send to ESP32 via 12-byte protocol
-        updateESPMotor(steering: steering, zones: zones)
+        let mergedSteering = SteeringDecision(command: finalCommand, confidence: steering.confidence, reason: steering.reason)
+        updateESPMotor(steering: mergedSteering, zones: zones)
 
         // Step 4: Update haptics based on closest obstacle
         let closestDistance = [zones.leftDistance, zones.centerDistance, zones.rightDistance]

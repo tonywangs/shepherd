@@ -10,6 +10,7 @@ import MapKit
 
 struct RouteMapView: View {
     @ObservedObject var navigationManager: NavigationManager
+    @State private var showMicroWaypoints = false
 
     var body: some View {
         ZStack {
@@ -100,6 +101,27 @@ struct RouteMapView: View {
                     }
                 }
 
+                // Micro-waypoints (when toggled on)
+                if showMicroWaypoints {
+                    let waypoints = navigationManager.waypointTracker.waypoints
+                    let currentIdx = navigationManager.waypointTracker.currentIndex
+                    ForEach(Array(waypoints.enumerated()), id: \.offset) { index, wp in
+                        Annotation("", coordinate: wp.coordinate) {
+                            Circle()
+                                .fill(index == currentIdx ? Color.yellow : Color.mint.opacity(0.7))
+                                .frame(width: index == currentIdx ? 12 : 8,
+                                       height: index == currentIdx ? 12 : 8)
+                                .overlay(
+                                    index == currentIdx ?
+                                        Circle()
+                                            .stroke(Color.yellow, lineWidth: 2)
+                                            .frame(width: 18, height: 18)
+                                        : nil
+                                )
+                        }
+                    }
+                }
+
                 // User location
                 if let userLoc = navigationManager.userLocation {
                     Annotation("You", coordinate: userLoc) {
@@ -148,6 +170,18 @@ struct RouteMapView: View {
             }
 
             Spacer()
+
+            // Micro-waypoint toggle
+            Button {
+                showMicroWaypoints.toggle()
+            } label: {
+                Image(systemName: "circle.grid.3x3.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(showMicroWaypoints ? .cyan : .gray)
+                    .padding(6)
+                    .background(showMicroWaypoints ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.2))
+                    .cornerRadius(6)
+            }
 
             // Nav state badge
             stateBadge

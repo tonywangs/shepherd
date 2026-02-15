@@ -22,6 +22,16 @@ class NavigationManager: NSObject, ObservableObject {
     @Published var distanceToNextManeuver: Double = 0
     @Published var distanceToDestination: Double = 0
     @Published var headingDegrees: Double = 0
+    @Published var caneHeadingDegrees: Double = 0
+    @Published var bearingToWaypointDegrees: Double = 0
+    @Published var headingErrorDegrees: Double = 0
+    @Published var navBiasValue: Float = 0
+
+    // MARK: - Navigation Steering
+
+    let headingProvider = CaneHeadingProvider()
+    let waypointTracker = MicroWaypointTracker()
+    let biasComputer = NavigationBiasComputer()
 
     // MARK: - Dependencies
 
@@ -129,8 +139,14 @@ class NavigationManager: NSObject, ObservableObject {
         currentGuidance = nil
         distanceToNextManeuver = 0
         distanceToDestination = 0
+        caneHeadingDegrees = 0
+        bearingToWaypointDegrees = 0
+        headingErrorDegrees = 0
+        navBiasValue = 0
         announcedInfrastructureIDs.removeAll()
         pendingDestination = nil
+        waypointTracker.reset()
+        biasComputer.reset()
         locationManager?.stopUpdatingLocation()
         locationManager?.stopUpdatingHeading()
         voiceManager?.speak("Navigation stopped", priority: true)
@@ -185,6 +201,10 @@ class NavigationManager: NSObject, ObservableObject {
             currentStepIndex = 0
             state = .navigating(stepIndex: 0)
             print("[Navigation] State -> navigating(0)")
+
+            // Build micro-waypoints for fine-grained progression
+            waypointTracker.buildFromRoute(route)
+            biasComputer.reset()
 
             // Start GPS tracking
             locationManager?.startUpdatingLocation()
@@ -263,6 +283,31 @@ class NavigationManager: NSObject, ObservableObject {
         // Check nearby infrastructure
         checkNearbyInfrastructure(at: coord, stepIndex: stepIndex, route: route)
 
+        // Advance micro-waypoints and compute navigation bias
+        _ = waypointTracker.advance(userLocation: coord)
+
+        let heading = headingProvider.currentHeading.degrees
+        biasComputer.compute(
+            caneHeading: heading,
+            userLocation: coord,
+            nextWaypoint: waypointTracker.nextWaypoint
+        )
+
+        // Publish compass data for SwiftUI
+        caneHeadingDegrees = heading
+        if let wp = waypointTracker.nextWaypoint {
+            bearingToWaypointDegrees = coord.bearing(to: wp.coordinate)
+        }
+        headingErrorDegrees = biasComputer.headingErrorDegrees
+        navBiasValue = biasComputer.navBias
+
+        // Wrong-way voice alert
+        if biasComputer.shouldAnnounceTurnAround {
+            voiceManager?.speak("Turn around", priority: true)
+            biasComputer.didAnnounceTurnAround()
+            print("[Navigation] Wrong-way alert fired")
+        }
+
         // Update guidance
         updateGuidance()
     }
@@ -331,8 +376,11 @@ extension NavigationManager: CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         let heading = newHeading.trueHeading
+        let accuracy = newHeading.headingAccuracy
         Task { @MainActor in
             self.headingDegrees = heading
+            self.headingProvider.updateFromCompass(trueHeading: heading, accuracy: accuracy)
+            self.caneHeadingDegrees = self.headingProvider.currentHeading.degrees
         }
     }
 

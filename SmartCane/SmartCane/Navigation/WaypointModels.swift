@@ -133,4 +133,17 @@ extension CLLocationCoordinate2D {
         let to = CLLocation(latitude: other.latitude, longitude: other.longitude)
         return from.distance(from: to)
     }
+
+    /// Bearing from this coordinate to another, in degrees (0-360, true north).
+    func bearing(to other: CLLocationCoordinate2D) -> Double {
+        let lat1 = latitude * .pi / 180.0
+        let lat2 = other.latitude * .pi / 180.0
+        let dLon = (other.longitude - longitude) * .pi / 180.0
+
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        let rad = atan2(y, x)
+
+        return (rad * 180.0 / .pi + 360.0).truncatingRemainder(dividingBy: 360.0)
+    }
 }

@@ -223,6 +223,11 @@ struct ContentView: View {
                     .background(Color.gray.opacity(0.15))
                     .cornerRadius(15)
 
+                    // Navigation Compass (only during active navigation)
+                    if let nav = caneController.navigationManager, nav.state.isActive {
+                        compassSection(nav: nav)
+                    }
+
                     // Steering Display - Enhanced
                     steeringSection
 
@@ -850,6 +855,132 @@ struct ContentView: View {
                             .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
                     )
             )
+        }
+        .padding()
+        .background(Color.gray.opacity(0.15))
+        .cornerRadius(15)
+    }
+
+    // MARK: - Navigation Compass Section
+
+    @ViewBuilder
+    private func compassSection(nav: NavigationManager) -> some View {
+        let heading = nav.caneHeadingDegrees
+        let bearing = nav.bearingToWaypointDegrees
+        let error = nav.headingErrorDegrees
+        let bias = nav.navBiasValue
+
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "location.north.circle.fill")
+                    .foregroundColor(.cyan)
+                Text("Navigation Compass")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+
+            // Compass dial
+            ZStack {
+                // Outer ring
+                Circle()
+                    .stroke(Color.gray.opacity(0.4), lineWidth: 2)
+                    .frame(width: 130, height: 130)
+
+                // Tick marks and cardinal labels, rotated so N points to true north
+                Group {
+                    ForEach(0..<12, id: \.self) { i in
+                        let angle = Double(i) * 30.0
+                        let isMajor = i % 3 == 0
+                        Rectangle()
+                            .fill(isMajor ? Color.white : Color.gray.opacity(0.5))
+                            .frame(width: isMajor ? 2 : 1, height: isMajor ? 12 : 8)
+                            .offset(y: -55)
+                            .rotationEffect(.degrees(angle))
+                    }
+
+                    // Cardinal labels
+                    Text("N").font(.system(size: 11, weight: .bold)).foregroundColor(.red)
+                        .offset(y: -42)
+                    Text("E").font(.system(size: 10, weight: .semibold)).foregroundColor(.white.opacity(0.7))
+                        .offset(x: 42)
+                    Text("S").font(.system(size: 10, weight: .semibold)).foregroundColor(.white.opacity(0.7))
+                        .offset(y: 42)
+                    Text("W").font(.system(size: 10, weight: .semibold)).foregroundColor(.white.opacity(0.7))
+                        .offset(x: -42)
+                }
+                .rotationEffect(.degrees(-heading))
+
+                // Heading error arc (from straight-ahead to waypoint direction)
+                Path { path in
+                    let center = CGPoint(x: 65, y: 65)
+                    let radius: CGFloat = 50
+                    let startAngle = Angle.degrees(-90)
+                    let endAngle = Angle.degrees(-90 + error)
+                    path.addArc(center: center, radius: radius,
+                                startAngle: startAngle, endAngle: endAngle,
+                                clockwise: error < 0)
+                }
+                .stroke(Color.orange.opacity(0.4), lineWidth: 6)
+                .frame(width: 130, height: 130)
+
+                // Waypoint arrow (points toward bearing, rotated relative to heading)
+                let arrowAngle = bearing - heading
+                VStack(spacing: 0) {
+                    Image(systemName: "arrowtriangle.up.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.cyan)
+                    Rectangle()
+                        .fill(Color.cyan)
+                        .frame(width: 2, height: 20)
+                }
+                .offset(y: -22)
+                .rotationEffect(.degrees(arrowAngle))
+
+                // Center dot (user position)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 8, height: 8)
+            }
+            .frame(width: 130, height: 130)
+
+            // Info readouts
+            HStack(spacing: 16) {
+                VStack(spacing: 2) {
+                    Text("Heading")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Text("\(Int(heading))°")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+
+                VStack(spacing: 2) {
+                    Text("WP Bearing")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Text("\(Int(bearing))°")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(.cyan)
+                }
+
+                VStack(spacing: 2) {
+                    Text("Error")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Text(String(format: "%+.0f°", error))
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(abs(error) > 45 ? .orange : .green)
+                }
+
+                VStack(spacing: 2) {
+                    Text("Bias")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Text(String(format: "%+.2f", bias))
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(bias < -0.1 ? .blue : bias > 0.1 ? .purple : .green)
+                }
+            }
         }
         .padding()
         .background(Color.gray.opacity(0.15))
