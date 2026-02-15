@@ -17,9 +17,10 @@ struct SteeringDecision {
 
 struct SteeringTuning {
     var temporalAlpha: Float = 0.08      // EMA memory speed
-    var smoothingAlpha: Float = 0.2       // Output smoothing speed
+    var smoothingAlpha: Float = 0.35      // Output smoothing speed (raised from 0.2 for faster ramp-up)
     var centerDeadband: Float = 0.15      // meters
     var lateralDeadband: Float = 0.2      // meters
+    var centerBoundary: Float = 0.33      // Overcorrection cap for side-zone obstacles
 }
 
 class SteeringEngine {
@@ -28,7 +29,6 @@ class SteeringEngine {
 
     // Temporal smoothing (EMA) to eliminate hallway oscillation
     private var smoothedCommand: Float = 0.0
-    private let smoothingAlpha: Float = 0.2  // 20% new frame, 80% previous
 
     // Temporal EMA of zone data for tiebreaking
     private var emaLeftDist: Float = 0.0
@@ -125,8 +125,18 @@ class SteeringEngine {
         // --- Continuous steering for non-center-critical obstacles ---
         let proximityFactor = max(0.0, min(1.0, (sensitivity - closestDist) / (sensitivity - 0.2)))
 
-        // lateralBias > 0 = obstacles on right → steer left (negative command)
-        var steerDirection = -zones.lateralBias
+        // Steer away from obstacles, but only enough to reach the center-line boundary.
+        // Center zone spans lateralBias ≈ [-0.33, +0.33].
+        // Side-zone obstacles (|bias| > 0.33) get capped to prevent overcorrection past center.
+        let centerBoundary = tuning.centerBoundary
+        var steerDirection: Float
+        if abs(zones.lateralBias) > centerBoundary {
+            // Obstacle in side zone: cap correction to center boundary
+            steerDirection = zones.lateralBias > 0 ? -centerBoundary : centerBoundary
+        } else {
+            // Obstacle in/near center zone: proportional response
+            steerDirection = -zones.lateralBias
+        }
 
         // Handle ambiguous bias (wall scenario) — tie-breaker
         if abs(zones.lateralBias) < 0.1 {

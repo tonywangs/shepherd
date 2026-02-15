@@ -105,6 +105,14 @@ struct BluetoothPairingView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Center Boundary: \(ble.centerBoundary, specifier: "%.2f")")
+                        Slider(value: $ble.centerBoundary, in: 0.1...0.8)
+                        Text("Cap for side-zone overcorrection (lower = gentler)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 // MARK: - Steering Algorithm (Debug)

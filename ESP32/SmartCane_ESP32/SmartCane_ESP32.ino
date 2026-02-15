@@ -1,277 +1,208 @@
-/*
- * SmartCane_ESP32.ino
- *
- * ESP32-S3 BLE Peripheral for Smart Cane
- * Receives steering commands from iPhone and controls motor
- *
- * Hardware:
- * - Seeed Studio XIAO ESP32-S3
- * - GoBilda 5203 Series 312 RPM motor
- * - Motor driver (H-bridge)
- * - Haptic vibration motor
- *
- * BLE Protocol:
- * - Receives 1-byte steering commands: -1 (LEFT), 0 (NEUTRAL), +1 (RIGHT)
- * - Receives 1-byte haptic intensity: 0-255
- */
+#include <Arduino.h>
+#include <NimBLEDevice.h>
 
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+static constexpr char kServiceUUID[] = "8A4E1E45-1E84-4AA2-B4B8-3D960D6CE001";
+static constexpr char kDataCharacteristicUUID[] = "8A4E1E45-1E84-4AA2-B4B8-3D960D6CE002";
 
-// ========================================
-// BLE UUIDs - MUST MATCH iOS APP
-// ========================================
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define STEERING_CHAR_UUID  "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-#define HAPTIC_CHAR_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a9"
+// Hardware pins from the standalone examples.
+static constexpr int kTapticPin = 1;
+static constexpr int kMotorForwardPin = 3;
+static constexpr int kMotorReversePin = 2;
 
-// ========================================
-// Hardware Pin Definitions
-// ========================================
-// Motor driver pins (H-bridge)
-#define MOTOR_PIN_LEFT  D0    // Left direction
-#define MOTOR_PIN_RIGHT D1    // Right direction
-#define MOTOR_ENABLE    D2    // Enable/PWM (speed control)
+// Taptic pulse shape from the original Taptic.ino demo.
+static constexpr uint32_t kCycleMicros = 3840;
+static constexpr uint8_t kPulseCycles = 2;
 
-// Haptic motor
-#define HAPTIC_PIN      D3    // Vibration motor control
+// Motor behavior tuning (adjust on hardware).
+static constexpr float kMotorInputScale = 1.0f / 255.0f;  // packet speed units -> normalized input
+static constexpr float kMotorTauSeconds = 0.55f;           // slightly faster exponential decay time constant
+static constexpr uint32_t kPacketTimeoutMs = 250;          // if packets stop arriving, force speed input to zero
 
-// LED indicator
-#define LED_PIN         LED_BUILTIN
+portMUX_TYPE gDataMux = portMUX_INITIALIZER_UNLOCKED;
+volatile float gSpeedField = 0.0f;     // packet field #1 (called angle in iOS UI)
+volatile float gDistanceField = 0.0f;  // packet field #2
+volatile uint32_t gModeField = 0;      // packet field #3
+volatile uint32_t gLastPacketMs = 0;
 
-// ========================================
-// Motor Control Parameters
-// ========================================
-#define MOTOR_SPEED_NEUTRAL  0      // Stopped
-#define MOTOR_SPEED_GENTLE   120    // Gentle steering (0-255 PWM)
-#define MOTOR_SPEED_STRONG   200    // Strong steering for obstacles
+void doTapticPulse() {
+  for (uint8_t i = 0; i < kPulseCycles; ++i) {
+    digitalWrite(kTapticPin, HIGH);
+    delayMicroseconds(kCycleMicros);
+    digitalWrite(kTapticPin, LOW);
+    delayMicroseconds(kCycleMicros);
+  }
+}
 
-// ========================================
-// Global Variables
-// ========================================
-BLEServer* pServer = NULL;
-BLECharacteristic* pSteeringChar = NULL;
-BLECharacteristic* pHapticChar = NULL;
 
-bool deviceConnected = false;
-int8_t currentSteeringCommand = 0;
-uint8_t currentHapticIntensity = 0;
+uint8_t capPwm255(float pwmValue) {
+  const float capped = constrain(pwmValue, 0.0f, 255.0f);
+  return static_cast<uint8_t>(roundf(capped));
+}
 
-unsigned long lastCommandTime = 0;
-const unsigned long COMMAND_TIMEOUT = 500; // ms - safety timeout
+float distanceToPulseIntervalMs(float distanceValue) {
+  const float d = constrain(distanceValue, 0.0f, 500.0f);
+  constexpr float minIntervalMs = 60.0f;    // very frequent at near distance
+  constexpr float maxIntervalMs = 3000.0f;  // infrequent at far distance
+  return minIntervalMs + (d / 500.0f) * (maxIntervalMs - minIntervalMs);
+}
 
-// ========================================
-// BLE Callbacks
-// ========================================
-class ServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      digitalWrite(LED_PIN, HIGH);
-      Serial.println("[BLE] Client connected");
+class DataCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
+    (void)connInfo;
+    std::string value = pCharacteristic->getValue();
+
+    if (value.size() != 12) {
+      Serial.printf("RX size %d (expected 12)\n", static_cast<int>(value.size()));
+      return;
     }
 
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      digitalWrite(LED_PIN, LOW);
-      Serial.println("[BLE] Client disconnected");
+    float speed = 0.0f;
+    float distance = 0.0f;
+    uint32_t mode = 0;
 
-      // Safety: Stop motor on disconnect
-      stopMotor();
+    memcpy(&speed, value.data(), 4);
+    memcpy(&distance, value.data() + 4, 4);
+    memcpy(&mode, value.data() + 8, 4);
 
-      // Restart advertising
-      BLEDevice::startAdvertising();
-      Serial.println("[BLE] Advertising restarted");
-    }
+    portENTER_CRITICAL(&gDataMux);
+    gSpeedField = speed;
+    gDistanceField = distance;
+    gModeField = mode;
+    gLastPacketMs = millis();
+    portEXIT_CRITICAL(&gDataMux);
+
+    Serial.printf("Speed(field1): %.2f | Distance: %.2f | Mode: %lu\n",
+                  speed,
+                  distance,
+                  static_cast<unsigned long>(mode));
+  }
 };
 
-class SteeringCharCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
+class ServerCallbacks : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer* server, NimBLEConnInfo& connInfo) override {
+    (void)server;
+    (void)connInfo;
+    Serial.println("BLE connected");
+  }
 
-      if (value.length() == 1) {
-        int8_t command = (int8_t)value[0];
-        handleSteeringCommand(command);
-        lastCommandTime = millis();
-      }
-    }
+  void onDisconnect(NimBLEServer* server, NimBLEConnInfo& connInfo, int reason) override {
+    (void)connInfo;
+    Serial.printf("BLE disconnected (reason %d), restarting advertising\n", reason);
+
+    portENTER_CRITICAL(&gDataMux);
+    gSpeedField = 0.0f;
+    gLastPacketMs = 0;
+    portEXIT_CRITICAL(&gDataMux);
+
+    server->startAdvertising();
+  }
 };
 
-class HapticCharCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
+void tapticTask(void* parameter) {
+  (void)parameter;
+  uint32_t lastPulseMs = millis();
 
-      if (value.length() == 1) {
-        uint8_t intensity = (uint8_t)value[0];
-        triggerHaptic(intensity);
-      }
+  while (true) {
+    float distanceSnapshot = 0.0f;
+    portENTER_CRITICAL(&gDataMux);
+    distanceSnapshot = gDistanceField;
+    portEXIT_CRITICAL(&gDataMux);
+
+    const float intervalMs = distanceToPulseIntervalMs(distanceSnapshot);
+    const uint32_t now = millis();
+    if (now - lastPulseMs >= static_cast<uint32_t>(intervalMs)) {
+      doTapticPulse();
+      lastPulseMs = millis();
     }
-};
 
-// ========================================
-// Setup
-// ========================================
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+}
+
+void motorTask(void* parameter) {
+  (void)parameter;
+  float motorState = 0.0f;  // Stored "impulse"/energy state
+  uint32_t lastMs = millis();
+
+  while (true) {
+    const uint32_t nowMs = millis();
+    float dt = (nowMs - lastMs) / 1000.0f;
+    if (dt <= 0.0f) {
+      dt = 0.001f;
+    }
+    lastMs = nowMs;
+
+    float speedInput = 0.0f;
+    uint32_t lastPacketMs = 0;
+    portENTER_CRITICAL(&gDataMux);
+    speedInput = gSpeedField;
+    lastPacketMs = gLastPacketMs;
+    portEXIT_CRITICAL(&gDataMux);
+
+    if (lastPacketMs == 0 || (nowMs - lastPacketMs) > kPacketTimeoutMs) {
+      speedInput = 0.0f;
+    }
+
+    // Signed leaky integrator: dS/dt = input - S/tau
+    // Positive integral drives forward, negative integral drives reverse.
+    // Output is S/tau, so integrated output tracks integrated input when S starts/ends near zero.
+    const float inputNorm = constrain(speedInput * kMotorInputScale, -1.0f, 1.0f);
+    motorState += dt * (inputNorm - (motorState / kMotorTauSeconds));
+
+    const float outputNorm = constrain(motorState / kMotorTauSeconds, -1.0f, 1.0f);
+    const uint8_t pwm = capPwm255(fabsf(outputNorm) * 255.0f);
+
+    if (outputNorm >= 0.0f) {
+      analogWrite(kMotorReversePin, 0);
+      analogWrite(kMotorForwardPin, pwm);
+    } else {
+      analogWrite(kMotorForwardPin, 0);
+      analogWrite(kMotorReversePin, pwm);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+
+NimBLECharacteristic* dataCharacteristic = nullptr;
+
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=================================");
-  Serial.println("Smart Cane ESP32-S3 Starting...");
-  Serial.println("=================================");
+  delay(1000);
 
-  // Configure hardware pins
-  pinMode(MOTOR_PIN_LEFT, OUTPUT);
-  pinMode(MOTOR_PIN_RIGHT, OUTPUT);
-  pinMode(MOTOR_ENABLE, OUTPUT);
-  pinMode(HAPTIC_PIN, OUTPUT);
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(kTapticPin, OUTPUT);
+  pinMode(kMotorForwardPin, OUTPUT);
+  pinMode(kMotorReversePin, OUTPUT);
+  analogWrite(kMotorForwardPin, 0);
+  analogWrite(kMotorReversePin, 0);
 
-  // Initialize outputs to safe state
-  stopMotor();
-  digitalWrite(HAPTIC_PIN, LOW);
-  digitalWrite(LED_PIN, LOW);
+  NimBLEDevice::init("ESP32-S3-BLE");
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
 
-  // Initialize BLE
-  initBLE();
+  NimBLEServer* server = NimBLEDevice::createServer();
+  server->setCallbacks(new ServerCallbacks());
+  NimBLEService* service = server->createService(kServiceUUID);
 
-  Serial.println("[Setup] System ready");
+  dataCharacteristic = service->createCharacteristic(
+      kDataCharacteristicUUID,
+      NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
+  );
+  dataCharacteristic->setCallbacks(new DataCallbacks());
+
+  service->start();
+
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+  advertising->addServiceUUID(kServiceUUID);
+  advertising->setName("ESP32-S3-BLE");
+  advertising->start();
+
+  xTaskCreatePinnedToCore(tapticTask, "tapticTask", 4096, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(motorTask, "motorTask", 4096, nullptr, 1, nullptr, 1);
+
+  Serial.println("BLE ready. Waiting for iOS app writes...");
 }
 
-// ========================================
-// Main Loop
-// ========================================
 void loop() {
-  // Safety timeout - stop motor if no command received recently
-  if (deviceConnected && (millis() - lastCommandTime > COMMAND_TIMEOUT)) {
-    if (currentSteeringCommand != 0) {
-      Serial.println("[Safety] Command timeout - stopping motor");
-      stopMotor();
-      currentSteeringCommand = 0;
-    }
-  }
-
-  // Blink LED when connected
-  if (deviceConnected) {
-    static unsigned long lastBlink = 0;
-    if (millis() - lastBlink > 1000) {
-      digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-      lastBlink = millis();
-    }
-  }
-
-  delay(10);
-}
-
-// ========================================
-// BLE Initialization
-// ========================================
-void initBLE() {
-  Serial.println("[BLE] Initializing...");
-
-  // Create BLE device
-  BLEDevice::init("SmartCane");
-
-  // Create BLE server
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new ServerCallbacks());
-
-  // Create BLE service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-
-  // Create steering characteristic
-  pSteeringChar = pService->createCharacteristic(
-                    STEERING_CHAR_UUID,
-                    BLECharacteristic::PROPERTY_WRITE |
-                    BLECharacteristic::PROPERTY_WRITE_NR
-                  );
-  pSteeringChar->setCallbacks(new SteeringCharCallbacks());
-
-  // Create haptic characteristic
-  pHapticChar = pService->createCharacteristic(
-                  HAPTIC_CHAR_UUID,
-                  BLECharacteristic::PROPERTY_WRITE |
-                  BLECharacteristic::PROPERTY_WRITE_NR
-                );
-  pHapticChar->setCallbacks(new HapticCharCallbacks());
-
-  // Start service
-  pService->start();
-
-  // Start advertising
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // iPhone connection optimization
-  pAdvertising->setMaxPreferred(0x12);
-  BLEDevice::startAdvertising();
-
-  Serial.println("[BLE] Advertising started - waiting for connection...");
-  Serial.print("[BLE] Device name: SmartCane | Service UUID: ");
-  Serial.println(SERVICE_UUID);
-}
-
-// ========================================
-// Motor Control Functions
-// ========================================
-void handleSteeringCommand(int8_t command) {
-  currentSteeringCommand = command;
-
-  switch (command) {
-    case -1:  // LEFT
-      steerLeft(MOTOR_SPEED_GENTLE);
-      Serial.println("[Motor] ← LEFT");
-      break;
-
-    case 0:   // NEUTRAL
-      stopMotor();
-      Serial.println("[Motor] → NEUTRAL ←");
-      break;
-
-    case 1:   // RIGHT
-      steerRight(MOTOR_SPEED_GENTLE);
-      Serial.println("[Motor] RIGHT →");
-      break;
-
-    default:
-      Serial.print("[Motor] Unknown command: ");
-      Serial.println(command);
-      stopMotor();
-      break;
-  }
-}
-
-void steerLeft(uint8_t speed) {
-  digitalWrite(MOTOR_PIN_RIGHT, LOW);
-  digitalWrite(MOTOR_PIN_LEFT, HIGH);
-  analogWrite(MOTOR_ENABLE, speed);
-}
-
-void steerRight(uint8_t speed) {
-  digitalWrite(MOTOR_PIN_LEFT, LOW);
-  digitalWrite(MOTOR_PIN_RIGHT, HIGH);
-  analogWrite(MOTOR_ENABLE, speed);
-}
-
-void stopMotor() {
-  digitalWrite(MOTOR_PIN_LEFT, LOW);
-  digitalWrite(MOTOR_PIN_RIGHT, LOW);
-  analogWrite(MOTOR_ENABLE, 0);
-}
-
-// ========================================
-// Haptic Control
-// ========================================
-void triggerHaptic(uint8_t intensity) {
-  currentHapticIntensity = intensity;
-
-  if (intensity > 0) {
-    analogWrite(HAPTIC_PIN, intensity);
-    Serial.print("[Haptic] Pulse: ");
-    Serial.println(intensity);
-
-    // Short pulse (haptic manager controls repetition)
-    delay(50);
-    analogWrite(HAPTIC_PIN, 0);
-  } else {
-    analogWrite(HAPTIC_PIN, 0);
-  }
+  // BLE + workers run continuously; keep loop idle.
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
