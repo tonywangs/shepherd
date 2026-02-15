@@ -354,9 +354,8 @@ struct ContentView: View {
                                     ZStack {
                                         Image(uiImage: cameraImage)
                                             .resizable()
-                                            .scaledToFill()
+                                            .scaledToFit()
                                             .frame(width: containerGeometry.size.width, height: isLandscape ? 280 : 240)
-                                            .clipped()
                                             .cornerRadius(12)
 
                                         // Zone dividers overlay - constrained to image bounds
@@ -479,19 +478,18 @@ struct ContentView: View {
                                     if let cameraImage = caneController.cameraPreview {
                                         Image(uiImage: cameraImage)
                                             .resizable()
-                                            .scaledToFill()
+                                            .scaledToFit()
                                             .frame(height: 200)
-                                            .clipped()
                                             .cornerRadius(12)
                                     }
 
                                     // Segmentation overlay on top
                                     Image(uiImage: overlayImage)
                                         .resizable()
-                                        .scaledToFill()
+                                        .scaledToFit()
                                         .frame(height: 200)
-                                        .clipped()
                                         .cornerRadius(12)
+                                        .opacity(0.6)  // Make overlay semi-transparent so you can see camera underneath
                                 }
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
