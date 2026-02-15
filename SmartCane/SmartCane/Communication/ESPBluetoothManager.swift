@@ -35,9 +35,11 @@ class ESPBluetoothManager: NSObject, ObservableObject {
     @Published var mode: Float = 0
 
     // Steering tuning parameters (adjustable via Bluetooth tab)
-    @Published var steeringSensitivity: Float = 2.0  // Distance threshold in meters
-    @Published var steeringMagnitude: Float = 2.0    // Motor intensity multiplier
-    @Published var centerBoundary: Float = 0.33      // Overcorrection cap for side-zone obstacles
+    @Published var steeringSensitivity: Float = 2.0  // Distance threshold in meters (when steering activates)
+    @Published var steeringMagnitude: Float = 1.0    // Motor strength multiplier
+    @Published var motorBaseScale: Float = 113.0     // Base speed sent to ESP32 (ESP32 divides by 255)
+    @Published var proximityExponent: Float = 0.6    // Urgency ramp curve (lower = ramps faster)
+    @Published var closeFloor: Float = 0.5           // Minimum |command| when obstacle < 1m
 
     private var centralManager: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?

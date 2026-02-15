@@ -89,82 +89,96 @@ struct BluetoothPairingView: View {
                 }
 
                 // MARK: - Steering Tuning
-                Section("Steering Tuning (Debug)") {
+                Section("Steering Tuning") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Sensitivity: \(ble.steeringSensitivity, specifier: "%.2f")m")
-                        Slider(value: $ble.steeringSensitivity, in: 0.5...3.0)
-                        Text("Trigger steering when obstacle < \(ble.steeringSensitivity, specifier: "%.1f")m")
+                        Text("Sensitivity: \(ble.steeringSensitivity, specifier: "%.1f")m")
+                        Slider(value: $ble.steeringSensitivity, in: 0.5...4.0)
+                        Text("Start steering when obstacle closer than this")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Magnitude: \(ble.steeringMagnitude, specifier: "%.2f")×")
+                        Text("Motor Base Scale: \(ble.motorBaseScale, specifier: "%.0f")")
+                        Slider(value: $ble.motorBaseScale, in: 10...255)
+                        Text("Raw speed sent to ESP32 (÷255 on device). Higher = stronger motor.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Magnitude: \(ble.steeringMagnitude, specifier: "%.1f")×")
                         Slider(value: $ble.steeringMagnitude, in: 0.1...3.0)
-                        Text("Motor strength multiplier")
+                        Text("Extra multiplier on base scale")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Center Boundary: \(ble.centerBoundary, specifier: "%.2f")")
-                        Slider(value: $ble.centerBoundary, in: 0.1...0.8)
-                        Text("Cap for side-zone overcorrection (lower = gentler)")
+                        Text("Proximity Exponent: \(ble.proximityExponent, specifier: "%.2f")")
+                        Slider(value: $ble.proximityExponent, in: 0.2...1.5)
+                        Text("Lower = ramps up faster with distance. 1.0 = linear.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Close Floor: \(ble.closeFloor, specifier: "%.2f")")
+                        Slider(value: $ble.closeFloor, in: 0.0...1.0)
+                        Text("Min |command| when obstacle < 1m. 0 = disabled.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                // MARK: - Steering Algorithm (Debug)
-                Section("Steering Algorithm (Debug)") {
-                    // Temporal EMA Alpha
+                // MARK: - Steering Debug
+                Section("Steering Debug (Live)") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("EMA Memory: \(controller.temporalAlpha, specifier: "%.3f")")
-                        Slider(value: $controller.temporalAlpha, in: 0.02...0.25)
-                        Text("Lower = longer memory, more stable. Higher = faster response.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Output Smoothing Alpha
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Output Smoothing: \(controller.smoothingAlpha, specifier: "%.2f")")
-                        Slider(value: $controller.smoothingAlpha, in: 0.05...0.5)
-                        Text("Lower = smoother steering. Higher = more responsive.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Center Deadband
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Center Deadband: \(controller.centerDeadband, specifier: "%.2f")m")
-                        Slider(value: $controller.centerDeadband, in: 0.05...0.5)
-                        Text("Min L/R difference to pick a side for center obstacles.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Lateral Deadband
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Lateral Deadband: \(controller.lateralDeadband, specifier: "%.2f")m")
-                        Slider(value: $controller.lateralDeadband, in: 0.05...0.5)
-                        Text("Min L/R difference to pick a side for side obstacles.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Live EMA Readout
-                    Divider()
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Live EMA State").font(.caption).foregroundStyle(.secondary)
                         HStack {
-                            Text("L: \(controller.emaLeftDist, specifier: "%.2f")m")
+                            Text("Gap Direction:")
+                                .foregroundStyle(.secondary)
                             Spacer()
-                            Text("Bias: \(controller.emaLateralBias, specifier: "%.3f")")
-                            Spacer()
-                            Text("R: \(controller.emaRightDist, specifier: "%.2f")m")
+                            Text(String(format: "%.2f", controller.gapDirection))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(
+                                    controller.gapDirection < -0.1 ? .blue :
+                                    controller.gapDirection > 0.1 ? .purple : .green
+                                )
                         }
-                        .font(.system(.caption, design: .monospaced))
+                        Text("Where the clearest path is: -1 = left, 0 = center, +1 = right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Steering Command:")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(String(format: "%.2f", controller.steeringCommand))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(
+                                    controller.steeringCommand < -0.1 ? .blue :
+                                    controller.steeringCommand > 0.1 ? .purple : .green
+                                )
+                        }
+                        Text("gap × proximity — sent to ESP32 as command × magnitude")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Motor Power:")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(controller.motorIntensity))/255")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(controller.motorIntensity > 0 ? .orange : .secondary)
+                        }
+                        Text("Estimated steady-state PWM on ESP32")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
