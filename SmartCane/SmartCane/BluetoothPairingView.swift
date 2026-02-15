@@ -18,7 +18,7 @@ struct BluetoothPairingView: View {
                 // MARK: - Git Info
                 Section("Build Info") {
                     HStack {
-                        Image(systemName: "chevron.branch")
+                        Image(systemName: "arrow.triangle.branch")
                             .foregroundColor(.orange)
                         Text("Branch:")
                             .foregroundColor(.secondary)
