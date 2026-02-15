@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 import UIKit
+import CoreML
 
 @MainActor
 class SmartCaneController: ObservableObject {
@@ -37,6 +38,15 @@ class SmartCaneController: ObservableObject {
     @Published var showCameraPreview = false
     @Published var deviceOrientation: UIDeviceOrientation = .portrait
 
+    // Terrain detection state
+    @Published var terrainDebugMode: Bool = false        // Toggle: classify but don't inject walls
+    @Published var terrainDetected: Bool = false         // Is any terrain currently detected?
+    @Published var detectedTerrainType: String = "none"  // grass, dirt, bushes, mixed, none
+    @Published var terrainLeftCoverage: Float = 0        // 0.0-1.0 per zone
+    @Published var terrainCenterCoverage: Float = 0
+    @Published var terrainRightCoverage: Float = 0
+    @Published var terrainDebugImage: UIImage? = nil     // Segmentation overlay for debug UI
+
     // Vapi voice assistant
     @Published var isVapiCallActive = false
     @Published var vapiTranscript: String?
@@ -62,6 +72,7 @@ class SmartCaneController: ObservableObject {
     private var voiceManager: VoiceManager?
     private var depthVisualizer: DepthVisualizer?
     private var objectRecognizer: ObjectRecognizer?
+    private var surfaceClassifier: SurfaceClassifier?
     private var espBluetooth: ESPBluetoothManager?
     var vapiManager: VapiManager?
 
@@ -73,6 +84,12 @@ class SmartCaneController: ObservableObject {
     private var latestCameraImage: CVPixelBuffer? = nil  // Store for camera preview
     private var isCameraPreviewInProgress = false
     private var lastCameraPreviewTime: Date = .distantPast
+
+    // Terrain classification state
+    private var lastTerrainClassificationTime: Date = .distantPast
+    private var latestTerrainObstacles: TerrainObstacles? = nil
+    private var lastTerrainAnnouncementTime: Date = .distantPast
+    private let terrainAnnouncementCooldown: TimeInterval = 5.0  // 5 seconds between alerts
 
     // Frame watchdog — detects depth pipeline stalls
     private var lastFrameTime: Date = .distantPast
@@ -109,6 +126,14 @@ class SmartCaneController: ObservableObject {
         steeringEngine = SteeringEngine()
         depthVisualizer = DepthVisualizer()
         objectRecognizer = ObjectRecognizer()
+
+        // Initialize terrain classifier (may be nil if model not available)
+        surfaceClassifier = SurfaceClassifier()
+        if surfaceClassifier != nil {
+            print("[Controller] Terrain classification enabled")
+        } else {
+            print("[Controller] Terrain classification unavailable (model not loaded)")
+        }
 
         // Monitor device orientation
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
@@ -309,8 +334,32 @@ class SmartCaneController: ObservableObject {
         latestDepthMap = frame.depthMap
         latestCameraImage = frame.capturedImage
 
+        // Step 0: Classify terrain (throttled to ~3Hz for performance)
+        let now = Date()
+        if now.timeIntervalSince(lastTerrainClassificationTime) > 0.33,
+           let classifier = surfaceClassifier,
+           let capturedImage = frame.capturedImage {
+
+            lastTerrainClassificationTime = now
+
+            classifier.classifyTerrain(
+                capturedImage,
+                orientation: deviceOrientation,
+                includeDebugMask: terrainDebugMode  // Only include mask when debug mode is ON
+            ) { [weak self] obstacles in
+                DispatchQueue.main.async {
+                    self?.updateTerrainState(obstacles)
+                }
+            }
+        }
+
         // Step 1: Detect obstacles in zones (pass orientation for coordinate transform)
-        guard let zones = obstacleDetector?.analyzeDepthFrame(frame, orientation: deviceOrientation) else { return }
+        // Pass terrain obstacles for merging (nil when debug mode is ON to disable steering impact)
+        guard let zones = obstacleDetector?.analyzeDepthFrame(
+            frame,
+            orientation: deviceOrientation,
+            terrainObstacles: terrainDebugMode ? nil : latestTerrainObstacles
+        ) else { return }
 
         // Update UI
         leftDistance = zones.leftDistance
@@ -786,5 +835,117 @@ class SmartCaneController: ObservableObject {
         guard !depthValues.isEmpty else { return nil }
         let sorted = depthValues.sorted()
         return sorted[sorted.count / 2]
+    }
+
+    // MARK: - Terrain Detection
+
+    /// Update terrain state from classification result
+    private func updateTerrainState(_ obstacles: TerrainObstacles?) {
+        guard let obstacles = obstacles else {
+            terrainDetected = false
+            detectedTerrainType = "none"
+            terrainLeftCoverage = 0
+            terrainCenterCoverage = 0
+            terrainRightCoverage = 0
+            terrainDebugImage = nil
+            latestTerrainObstacles = nil
+            return
+        }
+
+        latestTerrainObstacles = obstacles
+        terrainDetected = obstacles.leftHasTerrain || obstacles.centerHasTerrain || obstacles.rightHasTerrain
+        detectedTerrainType = obstacles.dominantTerrain.rawValue
+        terrainLeftCoverage = obstacles.leftTerrainCoverage
+        terrainCenterCoverage = obstacles.centerTerrainCoverage
+        terrainRightCoverage = obstacles.rightTerrainCoverage
+
+        // Generate debug overlay image if debug mode is ON
+        if terrainDebugMode, let mask = obstacles.segmentationMask {
+            terrainDebugImage = renderTerrainOverlay(mask: mask)
+        } else {
+            terrainDebugImage = nil
+        }
+
+        // Context-aware voice alert (with cooldown) - only when NOT in debug mode
+        if terrainDetected && !terrainDebugMode {
+            announceTerrainIfNeeded(obstacles.dominantTerrain)
+        }
+    }
+
+    /// Voice alert for detected terrain (with cooldown)
+    private func announceTerrainIfNeeded(_ terrain: OffPathTerrain) {
+        let now = Date()
+        guard now.timeIntervalSince(lastTerrainAnnouncementTime) > terrainAnnouncementCooldown else { return }
+
+        let message: String
+        switch terrain {
+        case .grass:
+            message = "Grass ahead, stay on path"
+        case .dirt:
+            message = "Dirt path ahead, stay on sidewalk"
+        case .bushes:
+            message = "Bushes ahead"
+        case .mixed:
+            message = "Off path terrain ahead"
+        case .none:
+            return  // No announcement needed
+        }
+
+        voiceManager?.speak(message)
+        lastTerrainAnnouncementTime = now
+    }
+
+    /// Render segmentation mask as color-coded overlay for debug UI
+    private func renderTerrainOverlay(mask: MLMultiArray) -> UIImage? {
+        let height = mask.shape[0].intValue
+        let width = mask.shape[1].intValue
+        let size = CGSize(width: width * 2, height: height * 2)  // 2x upscale for visibility
+
+        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
+        guard let ctx = UIGraphicsGetCurrentContext() else { return nil }
+
+        let scaleX = size.width / CGFloat(width)
+        let scaleY = size.height / CGFloat(height)
+
+        // Render every 2nd pixel for performance
+        for y in stride(from: 0, to: height, by: 2) {
+            for x in stride(from: 0, to: width, by: 2) {
+                let classIndex = mask[[y, x] as [NSNumber]].intValue
+                let color: UIColor
+
+                // PASCAL VOC temporary mapping (for testing):
+                switch classIndex {
+                case 16: color = .green.withAlphaComponent(0.5)   // pottedplant (vegetation proxy)
+                case 15: color = .yellow.withAlphaComponent(0.5)  // person
+                case 0:  color = .gray.withAlphaComponent(0.2)    // background
+                default: color = .clear
+                }
+
+                // For Cityscapes model, use:
+                // case 8:  color = .green.withAlphaComponent(0.5)   // vegetation
+                // case 9:  color = .brown.withAlphaComponent(0.5)   // terrain/dirt
+                // case 0:  color = .gray.withAlphaComponent(0.2)    // road (safe)
+                // case 1:  color = .blue.withAlphaComponent(0.2)    // sidewalk (safe)
+
+                if color != .clear {
+                    ctx.setFillColor(color.cgColor)
+                    ctx.fill(CGRect(x: CGFloat(x) * scaleX, y: CGFloat(y) * scaleY,
+                                   width: scaleX * 2, height: scaleY * 2))
+                }
+            }
+        }
+
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return image
+    }
+
+    /// Toggle terrain debug mode
+    func toggleTerrainDebugMode() {
+        terrainDebugMode.toggle()
+        if !terrainDebugMode {
+            terrainDebugImage = nil  // Clear debug overlay
+        }
+        print("[Controller] Terrain debug mode: \(terrainDebugMode ? "ON" : "OFF")")
     }
 }
