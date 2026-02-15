@@ -75,7 +75,7 @@ class ObstacleDetector {
         }
     }
 
-    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait) -> ObstacleZones {
+    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait, terrainObstacles: TerrainObstacles? = nil) -> ObstacleZones {
         let depthMap = frame.depthMap
 
         // Lock pixel buffer for reading
@@ -173,9 +173,25 @@ class ObstacleDetector {
         }
 
         // Convert infinities to nil
-        let left = leftMinDist.isFinite ? leftMinDist : nil
-        let center = centerMinDist.isFinite ? centerMinDist : nil
-        let right = rightMinDist.isFinite ? rightMinDist : nil
+        var left: Float? = leftMinDist.isFinite ? leftMinDist : nil
+        var center: Float? = centerMinDist.isFinite ? centerMinDist : nil
+        var right: Float? = rightMinDist.isFinite ? rightMinDist : nil
+
+        // Merge terrain obstacles as virtual walls
+        if let terrain = terrainObstacles {
+            let virtualDist: Float = 1.5  // Within sensitivity range but above critical threshold
+            let threshold: Float = 0.15
+
+            if terrain.leftTerrainCoverage > threshold {
+                left = min(left ?? virtualDist, virtualDist)
+            }
+            if terrain.centerTerrainCoverage > threshold {
+                center = min(center ?? virtualDist, virtualDist)
+            }
+            if terrain.rightTerrainCoverage > threshold {
+                right = min(right ?? virtualDist, virtualDist)
+            }
+        }
 
         // Compute continuous weighting fields
         let computedLateralBias: Float

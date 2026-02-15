@@ -915,8 +915,9 @@ class SmartCaneController: ObservableObject {
 
                 // PASCAL VOC temporary mapping (for testing):
                 switch classIndex {
-                case 16: color = .green.withAlphaComponent(0.5)   // pottedplant (vegetation proxy)
+                case 16: color = .green.withAlphaComponent(0.5)   // grass / vegetation
                 case 15: color = .yellow.withAlphaComponent(0.5)  // person
+                case 9:  color = .brown.withAlphaComponent(0.5)   // dirt / mulch
                 case 0:  color = .gray.withAlphaComponent(0.2)    // background
                 default: color = .clear
                 }
