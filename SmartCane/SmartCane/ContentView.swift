@@ -12,6 +12,7 @@ struct ContentView: View {
     @ObservedObject var espBluetooth: ESPBluetoothManager
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.verticalSizeClass) var verticalSizeClass
+    @State private var showNavigationSheet = false
 
     var isLandscape: Bool {
         horizontalSizeClass == .regular || verticalSizeClass == .compact
@@ -681,19 +682,36 @@ struct ContentView: View {
                         }
 
                         // Secondary controls row 2
-                        Button(action: {
-                            caneController.testVoice()
-                        }) {
-                            HStack {
-                                Image(systemName: "speaker.wave.2.fill")
-                                Text("Test Voice")
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                caneController.testVoice()
+                            }) {
+                                HStack {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                    Text("Test Voice")
+                                }
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
                             }
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue.opacity(0.8))
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+
+                            Button(action: {
+                                showNavigationSheet = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "map.fill")
+                                    Text("Navigate")
+                                }
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.cyan.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
                         }
                     }
 
@@ -718,6 +736,17 @@ struct ContentView: View {
                     .padding(.horizontal)
                 }
                 .padding()
+            }
+        }
+        .overlay(alignment: .top) {
+            if let navManager = caneController.navigationManager,
+               navManager.state != .idle {
+                NavigationHUD(navigationManager: navManager)
+            }
+        }
+        .sheet(isPresented: $showNavigationSheet) {
+            if let navManager = caneController.navigationManager {
+                NavigationInputSheet(navigationManager: navManager, isPresented: $showNavigationSheet)
             }
         }
         .onAppear {

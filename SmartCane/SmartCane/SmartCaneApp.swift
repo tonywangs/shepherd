@@ -20,6 +20,13 @@ struct SmartCaneApp: App {
                         Label("Navigation", systemImage: "location.fill")
                     }
 
+                if let navManager = caneController.navigationManager {
+                    RouteMapView(navigationManager: navManager)
+                        .tabItem {
+                            Label("Route", systemImage: "map.fill")
+                        }
+                }
+
                 BluetoothPairingView(ble: espBluetooth, controller: caneController)
                     .tabItem {
                         Label("Bluetooth", systemImage: "antenna.radiowaves.left.and.right")

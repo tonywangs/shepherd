@@ -66,6 +66,7 @@ class SmartCaneController: ObservableObject {
     private var espBluetooth: ESPBluetoothManager?
     var vapiManager: VapiManager?
     private var gameController: GameControllerManager?
+    var navigationManager: NavigationManager?
 
     private var cancellables = Set<AnyCancellable>()
     private var isVisualizationInProgress = false
@@ -169,6 +170,12 @@ class SmartCaneController: ObservableObject {
 
         // Subscribe to Vapi state changes
         setupVapiSubscriptions()
+
+        // Initialize GPS navigation
+        let routeService = RouteService(googleApiKey: Secrets.googleAPIKey)
+        navigationManager = NavigationManager()
+        navigationManager?.initialize(routeService: routeService, voiceManager: voiceManager)
+        print("[Controller] NavigationManager initialized")
 
         // Setup data pipeline
         setupDataPipeline()
@@ -834,10 +841,15 @@ class SmartCaneController: ObservableObject {
         }
     }
 
-    /// Voice alert for detected terrain (with cooldown)
+    /// Voice alert for detected terrain (with cooldown, suppressed during imminent nav turns)
     private func announceTerrainIfNeeded(_ terrain: OffPathTerrain) {
         let now = Date()
         guard now.timeIntervalSince(lastTerrainAnnouncementTime) > terrainAnnouncementCooldown else { return }
+
+        // Suppress non-critical terrain announcements when a navigation turn is imminent (< 50m)
+        if let nav = navigationManager, nav.state.isActive, nav.distanceToNextManeuver < 50 {
+            return
+        }
 
         let message: String
         switch terrain {

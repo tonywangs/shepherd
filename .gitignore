@@ -46,6 +46,9 @@ fastlane/test_output
 *.ino.map
 *.ino.hex
 
+# Secrets / API keys
+Secrets.swift
+
 # General
 *.swp
 *~

@@ -318,6 +318,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need Bluetooth to communicate with the Smart Cane motor controller.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need camera access for LiDAR depth sensing to detect obstacles.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to provide turn-by-turn navigation for the smart cane.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need microphone access for voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition for voice control features.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -354,6 +355,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need Bluetooth to communicate with the Smart Cane motor controller.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need camera access for LiDAR depth sensing to detect obstacles.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to provide turn-by-turn navigation for the smart cane.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need microphone access for voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition for voice control features.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

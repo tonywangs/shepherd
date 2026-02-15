@@ -155,28 +155,41 @@ class VoiceManager: NSObject, ObservableObject {
         print("[Voice] Stopped listening")
     }
 
-    // MARK: - Command Processing (Phase 3)
+    // MARK: - Navigation Speech
 
-    func processVoiceCommand(_ command: String) {
+    func speakNavigation(_ text: String, priority: Bool = false) {
+        speak(text, priority: priority)
+    }
+
+    // MARK: - Command Processing
+
+    func processVoiceCommand(_ command: String, navigationManager: NavigationManager? = nil) {
         let lowercased = command.lowercased()
 
         if lowercased.contains("navigate to") || lowercased.contains("take me to") {
-            // Extract destination
             let destination = lowercased
                 .replacingOccurrences(of: "navigate to", with: "")
                 .replacingOccurrences(of: "take me to", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            speak("Navigating to \(destination)")
-            // TODO: Integrate with GPS navigation (Phase 3)
+            if let nav = navigationManager, !destination.isEmpty {
+                nav.startNavigation(to: destination)
+            } else {
+                speak("Navigating to \(destination)")
+            }
+
+        } else if lowercased.contains("stop nav") || lowercased.contains("stop navigation") {
+            if let nav = navigationManager, nav.state.isActive {
+                nav.stopNavigation()
+            } else {
+                speak("No active navigation to stop")
+            }
 
         } else if lowercased.contains("stop") {
-            speak("Stopping navigation")
-            // TODO: Stop navigation
+            speak("Stopping")
 
         } else if lowercased.contains("resume") {
-            speak("Resuming navigation")
-            // TODO: Resume navigation
+            speak("Resuming")
 
         } else {
             speak("Command not recognized")
