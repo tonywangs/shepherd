@@ -19,7 +19,35 @@ class SteeringEngine {
     // Tuning parameters (adjust during testing)
     private let criticalThreshold: Float = 0.6  // meters - aggressive avoidance
 
+    // Temporal smoothing (EMA) to eliminate hallway oscillation
+    private var smoothedCommand: Float = 0.0
+    private let smoothingAlpha: Float = 0.2  // 20% new frame, 80% previous
+
     func computeSteering(zones: ObstacleZones, sensitivity: Float = 2.0) -> SteeringDecision {
+        let raw = computeRawSteering(zones: zones, sensitivity: sensitivity)
+        return applySmoothing(raw)
+    }
+
+    func reset() {
+        smoothedCommand = 0.0
+    }
+
+    private func applySmoothing(_ decision: SteeringDecision) -> SteeringDecision {
+        // Safety-critical commands bypass smoothing (confidence 1.0 + max magnitude)
+        if decision.confidence >= 1.0 && abs(decision.command) >= 1.0 {
+            smoothedCommand = decision.command
+            return decision
+        }
+
+        smoothedCommand = smoothingAlpha * decision.command + (1.0 - smoothingAlpha) * smoothedCommand
+        return SteeringDecision(
+            command: smoothedCommand,
+            confidence: decision.confidence,
+            reason: decision.reason + " [sm:\(String(format: "%.2f", smoothedCommand))]"
+        )
+    }
+
+    private func computeRawSteering(zones: ObstacleZones, sensitivity: Float = 2.0) -> SteeringDecision {
         // Priority 1: No obstacles detected at all
         if !zones.centerHasObstacle && !zones.leftHasObstacle && !zones.rightHasObstacle {
             return SteeringDecision(command: 0.0, confidence: 1.0, reason: "Clear path")

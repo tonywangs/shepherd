@@ -193,6 +193,9 @@ class SmartCaneController: ObservableObject {
         motorIntensity = 0.0
         steeringCommand = 0.0
 
+        // Reset steering smoother so next session starts fresh
+        steeringEngine?.reset()
+
         // Stop haptics
         hapticManager?.stop()
 
