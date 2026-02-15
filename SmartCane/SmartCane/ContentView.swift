@@ -223,94 +223,7 @@ struct ContentView: View {
                     .cornerRadius(15)
 
                     // Steering Display - Enhanced
-                    VStack(spacing: 15) {
-                        HStack {
-                            Image(systemName: "location.north.fill")
-                                .foregroundColor(.cyan)
-                            Text("Steering Command")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-
-                        HStack(spacing: 20) {
-                            // Left Arrow
-                            Image(systemName: "arrow.left.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(caneController.steeringCommand == -1 ? .blue : Color.gray.opacity(0.3))
-                                .scaleEffect(caneController.steeringCommand == -1 ? 1.2 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
-
-                            // Center Display
-                            VStack(spacing: 8) {
-                                Text(caneController.steeringCommandText)
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(caneController.steeringColor)
-
-                                // Motor Intensity Display
-                                Text("Power: \(Int(caneController.motorIntensity))/255")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(caneController.motorIntensity > 0 ? .orange : .gray)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(Color.gray.opacity(0.3))
-                                    .cornerRadius(8)
-
-                                // Direction indicator
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 80, height: 80)
-
-                                    Circle()
-                                        .fill(caneController.steeringColor)
-                                        .frame(width: 60, height: 60)
-                                        .offset(x: CGFloat(caneController.steeringCommand) * 15)
-                                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: caneController.steeringCommand)
-                                }
-
-                                // Intensity Bar
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .frame(height: 6)
-                                            .cornerRadius(3)
-
-                                        Rectangle()
-                                            .fill(LinearGradient(
-                                                gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            ))
-                                            .frame(width: geometry.size.width * CGFloat(caneController.motorIntensity / 255.0), height: 6)
-                                            .cornerRadius(3)
-                                            .animation(.easeOut(duration: 0.2), value: caneController.motorIntensity)
-                                    }
-                                }
-                                .frame(height: 6)
-                                .padding(.horizontal, 8)
-                            }
-
-                            // Right Arrow
-                            Image(systemName: "arrow.right.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(caneController.steeringCommand == 1 ? .purple : Color.gray.opacity(0.3))
-                                .scaleEffect(caneController.steeringCommand == 1 ? 1.2 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: caneController.steeringCommand)
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.gray.opacity(0.2))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
-                                )
-                        )
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.15))
-                    .cornerRadius(15)
+                    steeringSection
 
                     Divider()
                         .background(Color.white)
@@ -715,6 +628,107 @@ struct ContentView: View {
             print("[ContentView] View appeared, initializing controller...")
             caneController.initialize(espBluetooth: espBluetooth)
         }
+    }
+
+    // MARK: - Steering Display Section
+
+    @ViewBuilder
+    private var steeringSection: some View {
+        let cmd = caneController.steeringCommand
+        let leftScale = CGFloat(1.0 + abs(min(cmd, 0)) * 0.3)
+        let rightScale = CGFloat(1.0 + max(cmd, 0) * 0.3)
+        let dotOffset = CGFloat(cmd) * 30
+        let leftColor: Color = cmd < -0.1 ? .blue : Color.gray.opacity(0.3)
+        let rightColor: Color = cmd > 0.1 ? .purple : Color.gray.opacity(0.3)
+
+        VStack(spacing: 15) {
+            HStack {
+                Image(systemName: "location.north.fill")
+                    .foregroundColor(.cyan)
+                Text("Steering Command")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+
+            HStack(spacing: 20) {
+                // Left Arrow
+                Image(systemName: "arrow.left.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(leftColor)
+                    .scaleEffect(leftScale)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: cmd)
+
+                // Center Display
+                VStack(spacing: 8) {
+                    Text(caneController.steeringCommandText)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(caneController.steeringColor)
+
+                    // Motor Intensity Display
+                    Text("Power: \(Int(caneController.motorIntensity))/255")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(caneController.motorIntensity > 0 ? .orange : .gray)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color.gray.opacity(0.3))
+                        .cornerRadius(8)
+
+                    // Direction indicator
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 80, height: 80)
+
+                        Circle()
+                            .fill(caneController.steeringColor)
+                            .frame(width: 60, height: 60)
+                            .offset(x: dotOffset)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: cmd)
+                    }
+
+                    // Intensity Bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 6)
+                                .cornerRadius(3)
+
+                            Rectangle()
+                                .fill(LinearGradient(
+                                    gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .frame(width: geometry.size.width * CGFloat(caneController.motorIntensity / 255.0), height: 6)
+                                .cornerRadius(3)
+                                .animation(.easeOut(duration: 0.2), value: caneController.motorIntensity)
+                        }
+                    }
+                    .frame(height: 6)
+                    .padding(.horizontal, 8)
+                }
+
+                // Right Arrow
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(rightColor)
+                    .scaleEffect(rightScale)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: cmd)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.gray.opacity(0.2))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(caneController.steeringColor.opacity(0.5), lineWidth: 2)
+                    )
+            )
+        }
+        .padding()
+        .background(Color.gray.opacity(0.15))
+        .cornerRadius(15)
     }
 
     // MARK: - Vapi Voice Assistant Section

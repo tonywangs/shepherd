@@ -19,6 +19,11 @@ struct ObstacleZones {
     let leftHasObstacle: Bool
     let centerHasObstacle: Bool
     let rightHasObstacle: Bool
+
+    // Continuous weighting
+    let lateralBias: Float             // -1.0 (obstacles biased left) to +1.0 (biased right)
+    let averageLeftDistance: Float?     // avg depth of left-half pixels (x < 0.5 in display coords)
+    let averageRightDistance: Float?    // avg depth of right-half pixels (x >= 0.5 in display coords)
 }
 
 class ObstacleDetector {
@@ -83,7 +88,8 @@ class ObstacleDetector {
 
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
             return ObstacleZones(leftDistance: nil, centerDistance: nil, rightDistance: nil,
-                               leftHasObstacle: false, centerHasObstacle: false, rightHasObstacle: false)
+                               leftHasObstacle: false, centerHasObstacle: false, rightHasObstacle: false,
+                               lateralBias: 0.0, averageLeftDistance: nil, averageRightDistance: nil)
         }
 
         // Depth map is Float32 format (meters)
@@ -91,6 +97,23 @@ class ObstacleDetector {
 
         // Get orientation-adjusted zones
         let zones = getTransformedZones(for: orientation)
+
+        // Orientation handling for continuous model
+        let flipHorizontal: Bool
+        switch orientation {
+        case .portrait:
+            flipHorizontal = true   // raw X right = display left
+        default:
+            flipHorizontal = false
+        }
+
+        // Continuous weighting accumulators
+        var lateralWeightSum: Float = 0.0
+        var totalInverseDepthSum: Float = 0.0
+        var leftHalfDepthSum: Float = 0.0
+        var leftHalfCount: Int = 0
+        var rightHalfDepthSum: Float = 0.0
+        var rightHalfCount: Int = 0
 
         // Sample zones
         var leftMinDist: Float = Float.greatestFiniteMagnitude
@@ -121,6 +144,23 @@ class ObstacleDetector {
                     continue
                 }
 
+                // Continuous weighting: map normalizedX to display coords [-1, +1]
+                let rawPosition = (normalizedX - 0.5) * 2.0
+                let horizontalPosition = flipHorizontal ? -rawPosition : rawPosition
+                let inverseDepth = 1.0 / depth
+                lateralWeightSum += inverseDepth * horizontalPosition
+                totalInverseDepthSum += inverseDepth
+
+                // Accumulate average distances per display-half
+                let isLeftHalf = flipHorizontal ? (normalizedX >= 0.5) : (normalizedX < 0.5)
+                if isLeftHalf {
+                    leftHalfDepthSum += depth
+                    leftHalfCount += 1
+                } else {
+                    rightHalfDepthSum += depth
+                    rightHalfCount += 1
+                }
+
                 // Categorize into zones using transformed coordinates
                 if zones.left.contains(normalizedX) {
                     leftMinDist = min(leftMinDist, depth)
@@ -137,13 +177,26 @@ class ObstacleDetector {
         let center = centerMinDist.isFinite ? centerMinDist : nil
         let right = rightMinDist.isFinite ? rightMinDist : nil
 
+        // Compute continuous weighting fields
+        let computedLateralBias: Float
+        if totalInverseDepthSum > 0 {
+            computedLateralBias = max(-1.0, min(1.0, lateralWeightSum / totalInverseDepthSum))
+        } else {
+            computedLateralBias = 0.0
+        }
+        let avgLeftDist: Float? = leftHalfCount > 0 ? leftHalfDepthSum / Float(leftHalfCount) : nil
+        let avgRightDist: Float? = rightHalfCount > 0 ? rightHalfDepthSum / Float(rightHalfCount) : nil
+
         return ObstacleZones(
             leftDistance: left,
             centerDistance: center,
             rightDistance: right,
             leftHasObstacle: left != nil,
             centerHasObstacle: center != nil,
-            rightHasObstacle: right != nil
+            rightHasObstacle: right != nil,
+            lateralBias: computedLateralBias,
+            averageLeftDistance: avgLeftDist,
+            averageRightDistance: avgRightDist
         )
     }
 

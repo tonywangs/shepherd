@@ -21,7 +21,7 @@ class SmartCaneController: ObservableObject {
     @Published var centerDistance: Float? = nil
     @Published var rightDistance: Float? = nil
 
-    @Published var steeringCommand: Int8 = 0 // -1, 0, +1
+    @Published var steeringCommand: Float = 0.0 // -1.0 to +1.0 continuous
     @Published var motorIntensity: Float = 0.0 // 0-255, actual motor power being sent
     @Published var detectedObject: String? = nil
     @Published var detectedObjectDistance: Float? = nil
@@ -65,20 +65,22 @@ class SmartCaneController: ObservableObject {
 
     // Computed properties for UI
     var steeringCommandText: String {
-        switch steeringCommand {
-        case -1: return "← LEFT"
-        case 0: return "→ NEUTRAL ←"
-        case 1: return "RIGHT →"
-        default: return "UNKNOWN"
+        if steeringCommand < -0.1 {
+            return "← LEFT \(String(format: "%.2f", steeringCommand))"
+        } else if steeringCommand > 0.1 {
+            return "RIGHT +\(String(format: "%.2f", steeringCommand)) →"
+        } else {
+            return "→ NEUTRAL ←"
         }
     }
 
     var steeringColor: Color {
-        switch steeringCommand {
-        case -1: return .blue
-        case 0: return .green
-        case 1: return .purple
-        default: return .gray
+        if steeringCommand < -0.1 {
+            return .blue
+        } else if steeringCommand > 0.1 {
+            return .purple
+        } else {
+            return .green
         }
     }
 
@@ -189,7 +191,7 @@ class SmartCaneController: ObservableObject {
 
         // Zero out UI state
         motorIntensity = 0.0
-        steeringCommand = 0
+        steeringCommand = 0.0
 
         // Stop haptics
         hapticManager?.stop()
@@ -257,11 +259,9 @@ class SmartCaneController: ObservableObject {
         let right = zones.rightDistance.map { String(format: "%.1fm", $0) } ?? "clear"
 
         let steerDir: String
-        switch steering.command {
-        case -1: steerDir = "LEFT"
-        case 1: steerDir = "RIGHT"
-        default: steerDir = "STRAIGHT"
-        }
+        if steering.command < -0.1 { steerDir = "LEFT(\(String(format: "%.2f", steering.command)))" }
+        else if steering.command > 0.1 { steerDir = "RIGHT(\(String(format: "%.2f", steering.command)))" }
+        else { steerDir = "STRAIGHT" }
 
         var summary = "L:\(left) C:\(center) R:\(right) Steer:\(steerDir)"
 
@@ -299,8 +299,12 @@ class SmartCaneController: ObservableObject {
         // Update UI
         steeringCommand = steering.command
 
-        // Step 3: Send to ESP32 via BLE (old protocol, keep for now)
-        bleManager?.sendSteeringCommand(steering.command)
+        // Step 3: Send to ESP32 via BLE (old protocol, quantize to Int8)
+        let quantizedCommand: Int8
+        if steering.command < -0.3 { quantizedCommand = -1 }
+        else if steering.command > 0.3 { quantizedCommand = 1 }
+        else { quantizedCommand = 0 }
+        bleManager?.sendSteeringCommand(quantizedCommand)
 
         // Step 3b: Send to ESP32 via 12-byte protocol
         updateESPMotor(steering: steering, zones: zones)
@@ -381,10 +385,10 @@ class SmartCaneController: ObservableObject {
         }
 
         // Step 5b: Object recognition (Phase 2 - runs async, doesn't block steering)
-        // Throttle to prevent overwhelming Vision framework (max 1 call per 5 seconds)
+        // Throttle to ~2Hz (VNDetectHumanRectanglesRequest is lightweight)
         if let cameraImage = frame.capturedImage,
            !isObjectRecognitionInProgress,
-           Date().timeIntervalSince(lastObjectRecognitionTime) > 5.0 {
+           Date().timeIntervalSince(lastObjectRecognitionTime) > 0.5 {
 
             isObjectRecognitionInProgress = true
             lastObjectRecognitionTime = Date()
@@ -464,7 +468,7 @@ class SmartCaneController: ObservableObject {
         let baseIntensity = 255.0 * (1.0 - normalizedDist)
         let intensity = baseIntensity * magnitude
         let finalIntensity = min(255.0, max(0.0, Float(intensity)))
-        let speed = Float(steering.command) * finalIntensity
+        let speed = steering.command * finalIntensity
 
         // Update published motor intensity for UI display
         motorIntensity = finalIntensity
@@ -660,7 +664,7 @@ class SmartCaneController: ObservableObject {
     /// 4. **Distance Output**
     ///    - Returns distance in meters from iPhone to person
     ///    - Accurate within ±5cm for distances 0.2m - 5m
-    ///    - Updates every time person detection runs (~5 second intervals)
+    ///    - Updates every time person detection runs (~0.5 second intervals)
     ///
     /// **Example:**
     /// - Person detected at center of frame (0.5, 0.5)
