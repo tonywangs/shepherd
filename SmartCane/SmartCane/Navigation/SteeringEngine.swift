@@ -17,10 +17,9 @@ struct SteeringDecision {
 
 class SteeringEngine {
     // Tuning parameters (adjust during testing)
-    private let obstacleThreshold: Float = 1.2  // meters - below this triggers avoidance
     private let criticalThreshold: Float = 0.6  // meters - aggressive avoidance
 
-    func computeSteering(zones: ObstacleZones) -> SteeringDecision {
+    func computeSteering(zones: ObstacleZones, sensitivity: Float = 1.2) -> SteeringDecision {
         // Priority 1: Clear path ahead - no steering needed
         if !zones.centerHasObstacle && !zones.leftHasObstacle && !zones.rightHasObstacle {
             return SteeringDecision(command: 0, confidence: 1.0, reason: "Clear path")
@@ -28,20 +27,20 @@ class SteeringEngine {
 
         // Priority 2: Center obstacle - steer toward more open side
         if zones.centerHasObstacle, let centerDist = zones.centerDistance {
-            if centerDist < obstacleThreshold {
+            if centerDist < sensitivity {
                 return avoidCenterObstacle(zones: zones, centerDist: centerDist)
             }
         }
 
         // Priority 3: Side obstacles - steer away
         if zones.leftHasObstacle, let leftDist = zones.leftDistance {
-            if leftDist < obstacleThreshold {
+            if leftDist < sensitivity {
                 return SteeringDecision(command: 1, confidence: 0.8, reason: "Avoid left obstacle at \(leftDist)m")
             }
         }
 
         if zones.rightHasObstacle, let rightDist = zones.rightDistance {
-            if rightDist < obstacleThreshold {
+            if rightDist < sensitivity {
                 return SteeringDecision(command: -1, confidence: 0.8, reason: "Avoid right obstacle at \(rightDist)m")
             }
         }

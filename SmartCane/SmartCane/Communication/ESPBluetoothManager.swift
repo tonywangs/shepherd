@@ -34,6 +34,10 @@ class ESPBluetoothManager: NSObject, ObservableObject {
     @Published var distance: Float = 0
     @Published var mode: Float = 0
 
+    // Steering tuning parameters (adjustable via Bluetooth tab)
+    @Published var steeringSensitivity: Float = 2.0  // Distance threshold in meters
+    @Published var steeringMagnitude: Float = 2.0    // Motor intensity multiplier
+
     private var centralManager: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?

@@ -246,6 +246,15 @@ struct ContentView: View {
                                     .font(.system(size: 28, weight: .bold))
                                     .foregroundColor(caneController.steeringColor)
 
+                                // Motor Intensity Display
+                                Text("Power: \(Int(caneController.motorIntensity))/255")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(caneController.motorIntensity > 0 ? .orange : .gray)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(Color.gray.opacity(0.3))
+                                    .cornerRadius(8)
+
                                 // Direction indicator
                                 ZStack {
                                     Circle()
@@ -258,6 +267,28 @@ struct ContentView: View {
                                         .offset(x: CGFloat(caneController.steeringCommand) * 15)
                                         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: caneController.steeringCommand)
                                 }
+
+                                // Intensity Bar
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .leading) {
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(height: 6)
+                                            .cornerRadius(3)
+
+                                        Rectangle()
+                                            .fill(LinearGradient(
+                                                gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ))
+                                            .frame(width: geometry.size.width * CGFloat(caneController.motorIntensity / 255.0), height: 6)
+                                            .cornerRadius(3)
+                                            .animation(.easeOut(duration: 0.2), value: caneController.motorIntensity)
+                                    }
+                                }
+                                .frame(height: 6)
+                                .padding(.horizontal, 8)
                             }
 
                             // Right Arrow

@@ -86,6 +86,25 @@ struct BluetoothPairingView: View {
                         Slider(value: $ble.mode, in: 0...10, step: 1)
                     }
                 }
+
+                // MARK: - Steering Tuning
+                Section("Steering Tuning (Debug)") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Sensitivity: \(ble.steeringSensitivity, specifier: "%.2f")m")
+                        Slider(value: $ble.steeringSensitivity, in: 0.5...3.0)
+                        Text("Trigger steering when obstacle < \(ble.steeringSensitivity, specifier: "%.1f")m")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Magnitude: \(ble.steeringMagnitude, specifier: "%.2f")×")
+                        Slider(value: $ble.steeringMagnitude, in: 0.1...3.0)
+                        Text("Motor strength multiplier")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .navigationTitle("ESP32 Bluetooth")
         }

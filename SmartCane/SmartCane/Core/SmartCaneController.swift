@@ -22,6 +22,7 @@ class SmartCaneController: ObservableObject {
     @Published var rightDistance: Float? = nil
 
     @Published var steeringCommand: Int8 = 0 // -1, 0, +1
+    @Published var motorIntensity: Float = 0.0 // 0-255, actual motor power being sent
     @Published var detectedObject: String? = nil
     @Published var detectedObjectDistance: Float? = nil
     @Published var latencyMs: Double = 0.0
@@ -186,6 +187,10 @@ class SmartCaneController: ObservableObject {
         espBluetooth?.distance = 500
         espBluetooth?.mode = 0
 
+        // Zero out UI state
+        motorIntensity = 0.0
+        steeringCommand = 0
+
         // Stop haptics
         hapticManager?.stop()
 
@@ -286,7 +291,10 @@ class SmartCaneController: ObservableObject {
         rightDistance = zones.rightDistance
 
         // Step 2: Compute steering decision
-        guard let steering = steeringEngine?.computeSteering(zones: zones) else { return }
+        guard let steering = steeringEngine?.computeSteering(
+            zones: zones,
+            sensitivity: espBluetooth?.steeringSensitivity ?? 2.0
+        ) else { return }
 
         // Update UI
         steeringCommand = steering.command
@@ -445,10 +453,21 @@ class SmartCaneController: ObservableObject {
             .compactMap { $0 }
             .min() ?? 5.0
 
+        // Get tuning parameters
+        let sensitivity = esp.steeringSensitivity
+        let magnitude = esp.steeringMagnitude
+
         // Speed: command direction × proximity-based intensity
-        // 0.2m → 255 (max), 1.2m+ → 0 (no motor)
-        let intensity = min(255.0, max(0.0, 255.0 * (1.0 - (closestDist - 0.2) / 1.0)))
-        let speed = Float(steering.command) * Float(intensity)
+        // Base intensity scales from 0.2m to sensitivity threshold
+        let rangeMeters = sensitivity - 0.2
+        let normalizedDist = max(0.0, min(1.0, (closestDist - 0.2) / rangeMeters))
+        let baseIntensity = 255.0 * (1.0 - normalizedDist)
+        let intensity = baseIntensity * magnitude
+        let finalIntensity = min(255.0, max(0.0, Float(intensity)))
+        let speed = Float(steering.command) * finalIntensity
+
+        // Update published motor intensity for UI display
+        motorIntensity = finalIntensity
 
         // Haptic distance: closest obstacle in meters × 125, capped at 500
         let hapticDist = min(500.0, closestDist * 125.0)
@@ -457,7 +476,7 @@ class SmartCaneController: ObservableObject {
         esp.distance = hapticDist
         esp.mode = 1
 
-        print("[Controller] ESP32 -> speed: \(String(format: "%.1f", speed)), hapticDist: \(String(format: "%.1f", hapticDist)), mode: 1")
+        print("[Controller] ESP32 -> speed: \(String(format: "%.1f", speed)), intensity: \(String(format: "%.1f", finalIntensity)), hapticDist: \(String(format: "%.1f", hapticDist)), mode: 1")
     }
 
     func testVoice() {
