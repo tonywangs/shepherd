@@ -8,7 +8,15 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git -C /Users/shanemion/TreeHacks2026/raising-canes diff HEAD -- SmartCane/SmartCane/ContentView.swift SmartCane/SmartCane/Core/SmartCaneController.swift)"
+      "Bash(git -C /Users/shanemion/TreeHacks2026/raising-canes diff HEAD -- SmartCane/SmartCane/ContentView.swift SmartCane/SmartCane/Core/SmartCaneController.swift)",
+      "Bash(wc:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.vapi.ai)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__ide__getDiagnostics",
+      "Bash(find:*)",
+      "Bash(git -C /Users/tonywang/raising-canes log --all --full-history --oneline -- \"*SurfaceClassifier*\")",
+      "Bash(grep:*)"
     ]
   }
 }

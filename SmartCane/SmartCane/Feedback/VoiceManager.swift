@@ -89,68 +89,89 @@ class VoiceManager: NSObject, ObservableObject {
     func startListening(completion: @escaping (String) -> Void) {
         guard !isListening else { return }
 
-        // Cancel any existing task
+        // 1. Check speech recognition is available and authorized
+        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
+            print("[Voice] Speech recognizer unavailable")
+            return
+        }
+
+        guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            print("[Voice] Speech recognition not authorized (status: \(SFSpeechRecognizer.authorizationStatus().rawValue))")
+            return
+        }
+
+        // 2. Configure audio session for recording
+        configureAudioSession()
+
+        // 3. Clean up any previous session
         recognitionTask?.cancel()
         recognitionTask = nil
+        recognitionRequest = nil
 
-        // Create audio engine
-        audioEngine = AVAudioEngine()
-        guard let audioEngine = audioEngine else { return }
+        // 4. Set up audio engine and validate format
+        let engine = AVAudioEngine()
+        let inputNode = engine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-        let inputNode = audioEngine.inputNode
+        guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
+            print("[Voice] Invalid audio format (sampleRate=\(recordingFormat.sampleRate), channels=\(recordingFormat.channelCount)) — mic may be unavailable")
+            return
+        }
 
-        // Create recognition request
-        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest = recognitionRequest else { return }
+        // 5. Create recognition request
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
 
-        recognitionRequest.shouldReportPartialResults = true
+        // 6. Install audio tap FIRST (before recognition task, so audio is flowing)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            request.append(buffer)
+        }
 
-        // Start recognition task
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            var isFinal = false
+        // 7. Start audio engine BEFORE recognition task
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            print("[Voice] Failed to start audio engine: \(error)")
+            inputNode.removeTap(onBus: 0)
+            return
+        }
 
-            if let result = result {
+        // 8. Store references now that setup succeeded
+        self.audioEngine = engine
+        self.recognitionRequest = request
+        isListening = true
+        print("[Voice] Started listening...")
+
+        // 9. Start recognition task LAST (audio is already flowing)
+        recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+
+            if let result = result, result.isFinal {
                 let transcription = result.bestTranscription.formattedString
-                print("[Voice] Heard: \(transcription)")
+                print("[Voice] Final: \(transcription)")
+                completion(transcription)
+            }
 
-                isFinal = result.isFinal
-
-                if isFinal {
-                    completion(transcription)
+            if error != nil || (result?.isFinal == true) {
+                engine.stop()
+                inputNode.removeTap(onBus: 0)
+                self.recognitionRequest = nil
+                self.recognitionTask = nil
+                DispatchQueue.main.async {
+                    self.isListening = false
                 }
             }
-
-            if error != nil || isFinal {
-                audioEngine.stop()
-                inputNode.removeTap(onBus: 0)
-
-                self?.recognitionRequest = nil
-                self?.recognitionTask = nil
-                self?.isListening = false
-            }
-        }
-
-        // Configure audio format
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            recognitionRequest.append(buffer)
-        }
-
-        // Start audio engine
-        audioEngine.prepare()
-
-        do {
-            try audioEngine.start()
-            isListening = true
-            print("[Voice] Started listening...")
-        } catch {
-            print("[Voice] Error starting audio engine: \(error)")
         }
     }
 
     func stopListening() {
         audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        recognitionTask?.cancel()
+        recognitionTask = nil
         isListening = false
         print("[Voice] Stopped listening")
     }

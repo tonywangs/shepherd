@@ -12,7 +12,9 @@ import SwiftUI
 struct NavigationInputSheet: View {
     @ObservedObject var navigationManager: NavigationManager
     @Binding var isPresented: Bool
+    var voiceManager: VoiceManager?
     @State private var destination: String = ""
+    @State private var isListeningForDest: Bool = false
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
@@ -28,21 +30,32 @@ struct NavigationInputSheet: View {
                         .bold()
                         .foregroundColor(.white)
 
-                    Text("Enter a destination for walking directions")
+                    Text("Enter or speak a destination")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                 }
                 .padding(.top, 20)
 
-                TextField("e.g. Tresidder Union, Stanford", text: $destination)
-                    .textFieldStyle(.plain)
-                    .padding()
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(12)
-                    .foregroundColor(.white)
-                    .focused($isTextFieldFocused)
-                    .submitLabel(.go)
-                    .onSubmit { startNavigation() }
+                HStack(spacing: 8) {
+                    TextField("e.g. Tresidder Union, Stanford", text: $destination)
+                        .textFieldStyle(.plain)
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(12)
+                        .foregroundColor(.white)
+                        .focused($isTextFieldFocused)
+                        .submitLabel(.go)
+                        .onSubmit { startNavigation() }
+
+                    Button(action: toggleVoiceInput) {
+                        Image(systemName: isListeningForDest ? "mic.fill" : "mic")
+                            .font(.title2)
+                            .foregroundColor(isListeningForDest ? .green : .cyan)
+                            .frame(width: 50, height: 50)
+                            .background(isListeningForDest ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
+                            .cornerRadius(12)
+                    }
+                }
 
                 Button(action: startNavigation) {
                     HStack(spacing: 10) {
@@ -78,6 +91,22 @@ struct NavigationInputSheet: View {
         print("[NavigationSheet] Navigate tapped with destination: '\(destination)'")
         navigationManager.startNavigation(to: destination)
         isPresented = false
+    }
+
+    private func toggleVoiceInput() {
+        if isListeningForDest {
+            voiceManager?.stopListening()
+            isListeningForDest = false
+        } else {
+            isTextFieldFocused = false
+            isListeningForDest = true
+            voiceManager?.startListening { [self] text in
+                DispatchQueue.main.async {
+                    self.destination = text
+                    self.isListeningForDest = false
+                }
+            }
+        }
     }
 }
 

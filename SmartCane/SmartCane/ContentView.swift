@@ -720,8 +720,8 @@ struct ContentView: View {
                         }
                     }
 
-                    // Voice Assistant (Vapi)
-                    vapiSection
+                    // Voice Assistant (Claude)
+                    voiceAssistantSection
 
                     // Debug Info - Enhanced
                     HStack(spacing: 8) {
@@ -751,7 +751,11 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showNavigationSheet) {
             if let navManager = caneController.navigationManager {
-                NavigationInputSheet(navigationManager: navManager, isPresented: $showNavigationSheet)
+                NavigationInputSheet(
+                    navigationManager: navManager,
+                    isPresented: $showNavigationSheet,
+                    voiceManager: caneController.voiceManagerRef
+                )
             }
         }
         .onAppear {
@@ -987,10 +991,10 @@ struct ContentView: View {
         .cornerRadius(15)
     }
 
-    // MARK: - Vapi Voice Assistant Section
+    // MARK: - Voice Assistant Section (Claude)
 
     @ViewBuilder
-    private var vapiSection: some View {
+    private var voiceAssistantSection: some View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "waveform.circle.fill")
@@ -1000,65 +1004,35 @@ struct ContentView: View {
                     .font(.headline)
                     .foregroundColor(.white)
                 Spacer()
-
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(caneController.isVapiCallActive ? Color.green : Color.gray)
-                        .frame(width: 10, height: 10)
-                    Text(caneController.isVapiCallActive ? "Active" : "Inactive")
-                        .font(.caption)
-                        .foregroundColor(caneController.isVapiCallActive ? .green : .gray)
-                }
             }
 
-            HStack(spacing: 12) {
-                Button(action: {
-                    if caneController.isVapiCallActive {
-                        caneController.stopVapiCall()
-                    } else {
-                        caneController.startVapiCall()
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: caneController.isVapiCallActive ? "phone.down.fill" : "phone.fill")
-                            .font(.title3)
-                        Text(caneController.isVapiCallActive ? "End Call" : "Start Call")
-                            .font(.subheadline)
-                            .bold()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(caneController.isVapiCallActive ? Color.red.opacity(0.8) : Color.mint.opacity(0.8))
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            Button(action: {
+                if caneController.isListening {
+                    caneController.stopListeningForCommand()
+                } else {
+                    caneController.startListeningForCommand()
                 }
-
-                if caneController.isVapiCallActive {
-                    Button(action: {
-                        caneController.toggleVapiMute()
-                    }) {
-                        let muted = caneController.vapiManager?.isMuted == true
-                        VStack(spacing: 4) {
-                            Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
-                                .font(.title3)
-                            Text(muted ? "Unmute" : "Mute")
-                                .font(.caption2)
-                        }
-                        .frame(width: 70)
-                        .padding(.vertical, 12)
-                        .background(muted ? Color.orange.opacity(0.8) : Color.gray.opacity(0.4))
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                    }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: caneController.isListening ? "mic.fill" : "mic")
+                        .font(.title3)
+                    Text(caneController.isListening ? "Listening..." : "Talk")
+                        .font(.subheadline)
+                        .bold()
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(caneController.isListening ? Color.green.opacity(0.8) : Color.mint.opacity(0.8))
+                .foregroundColor(.white)
+                .cornerRadius(12)
             }
 
-            if let transcript = caneController.vapiTranscript {
+            if let response = caneController.lastAssistantResponse {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "text.bubble.fill")
                         .font(.caption)
                         .foregroundColor(.mint)
-                    Text(transcript)
+                    Text(response)
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.8))
                         .lineLimit(3)
@@ -1068,25 +1042,13 @@ struct ContentView: View {
                 .background(Color.mint.opacity(0.1))
                 .cornerRadius(8)
             }
-
-            if let error = caneController.vapiError {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red.opacity(0.8))
-                        .lineLimit(2)
-                }
-            }
         }
         .padding()
         .background(Color.gray.opacity(0.15))
         .cornerRadius(15)
         .overlay(
             RoundedRectangle(cornerRadius: 15)
-                .stroke(caneController.isVapiCallActive ? Color.mint.opacity(0.5) : Color.clear, lineWidth: 1)
+                .stroke(caneController.isListening ? Color.mint.opacity(0.5) : Color.clear, lineWidth: 1)
         )
     }
 
