@@ -913,19 +913,15 @@ class SmartCaneController: ObservableObject {
                 let classIndex = mask[[y, x] as [NSNumber]].intValue
                 let color: UIColor
 
-                // PASCAL VOC temporary mapping (for testing):
+                // Cityscapes standard classes:
                 switch classIndex {
-                case 16: color = .green.withAlphaComponent(0.5)   // pottedplant (vegetation proxy)
-                case 15: color = .yellow.withAlphaComponent(0.5)  // person
-                case 0:  color = .gray.withAlphaComponent(0.2)    // background
+                case 8:  color = .green.withAlphaComponent(0.5)   // vegetation (grass, bushes)
+                case 9:  color = .brown.withAlphaComponent(0.5)   // terrain (dirt, unpaved)
+                case 0:  color = .gray.withAlphaComponent(0.2)    // road (safe)
+                case 1:  color = .blue.withAlphaComponent(0.2)    // sidewalk (safe)
+                case 11: color = .yellow.withAlphaComponent(0.5)  // person
                 default: color = .clear
                 }
-
-                // For Cityscapes model, use:
-                // case 8:  color = .green.withAlphaComponent(0.5)   // vegetation
-                // case 9:  color = .brown.withAlphaComponent(0.5)   // terrain/dirt
-                // case 0:  color = .gray.withAlphaComponent(0.2)    // road (safe)
-                // case 1:  color = .blue.withAlphaComponent(0.2)    // sidewalk (safe)
 
                 if color != .clear {
                     ctx.setFillColor(color.cgColor)

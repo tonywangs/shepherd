@@ -75,7 +75,7 @@ class ObstacleDetector {
         }
     }
 
-    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait) -> ObstacleZones {
+    func analyzeDepthFrame(_ frame: DepthFrame, orientation: UIDeviceOrientation = .portrait, terrainObstacles: TerrainObstacles? = nil) -> ObstacleZones {
         let depthMap = frame.depthMap
 
         // Lock pixel buffer for reading
@@ -173,9 +173,29 @@ class ObstacleDetector {
         }
 
         // Convert infinities to nil
-        let left = leftMinDist.isFinite ? leftMinDist : nil
-        let center = centerMinDist.isFinite ? centerMinDist : nil
-        let right = rightMinDist.isFinite ? rightMinDist : nil
+        var left = leftMinDist.isFinite ? leftMinDist : nil
+        var center = centerMinDist.isFinite ? centerMinDist : nil
+        var right = rightMinDist.isFinite ? rightMinDist : nil
+
+        // Merge terrain obstacles (inject virtual walls for terrain detection)
+        if let terrain = terrainObstacles {
+            let virtualWallDistance: Float = 0.6  // meters (treat terrain like a close wall)
+
+            // Override zone distance if terrain detected AND (no real obstacle OR terrain is closer)
+            if terrain.leftHasTerrain {
+                left = min(left ?? Float.greatestFiniteMagnitude, virtualWallDistance)
+            }
+            if terrain.centerHasTerrain {
+                center = min(center ?? Float.greatestFiniteMagnitude, virtualWallDistance)
+            }
+            if terrain.rightHasTerrain {
+                right = min(right ?? Float.greatestFiniteMagnitude, virtualWallDistance)
+            }
+
+            if terrain.leftHasTerrain || terrain.centerHasTerrain || terrain.rightHasTerrain {
+                print("[Obstacle] Terrain merged - L: \(left?.description ?? "nil"), C: \(center?.description ?? "nil"), R: \(right?.description ?? "nil")")
+            }
+        }
 
         // Compute continuous weighting fields
         let computedLateralBias: Float

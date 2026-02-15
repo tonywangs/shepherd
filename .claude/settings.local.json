@@ -8,7 +8,23 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git -C /Users/shanemion/TreeHacks2026/raising-canes diff HEAD -- SmartCane/SmartCane/ContentView.swift SmartCane/SmartCane/Core/SmartCaneController.swift)"
+      "Bash(git -C /Users/shanemion/TreeHacks2026/raising-canes diff HEAD -- SmartCane/SmartCane/ContentView.swift SmartCane/SmartCane/Core/SmartCaneController.swift)",
+      "Bash(ps:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(find:*)",
+      "Bash(git restore:*)",
+      "Bash(git lfs pull:*)",
+      "Bash(wget:*)",
+      "Bash(tar:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(git clone:*)",
+      "Bash(ls:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
