@@ -15,6 +15,31 @@ struct BluetoothPairingView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - Git Info
+                Section("Build Info") {
+                    HStack {
+                        Image(systemName: "chevron.branch")
+                            .foregroundColor(.orange)
+                        Text("Branch:")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(controller.gitBranch)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(.primary)
+                    }
+
+                    HStack {
+                        Image(systemName: "clock")
+                            .foregroundColor(.blue)
+                        Text("Last commit:")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(controller.gitLastCommit)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.primary)
+                    }
+                }
+
                 // MARK: - Bluetooth Pairing
                 Section("Bluetooth") {
                     HStack {

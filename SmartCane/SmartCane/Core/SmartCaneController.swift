@@ -63,6 +63,10 @@ class SmartCaneController: ObservableObject {
     @Published var emaRightDist: Float = 0.0
     @Published var emaLateralBias: Float = 0.0
 
+    // Git repository info (read-only for UI)
+    @Published var gitBranch: String = "unknown"
+    @Published var gitLastCommit: String = "unknown"
+
     // Subsystems
     private var depthSensor: DepthSensor?
     private var obstacleDetector: ObstacleDetector?
@@ -180,6 +184,11 @@ class SmartCaneController: ObservableObject {
 
         // Setup data pipeline
         setupDataPipeline()
+
+        // Read git repository info for debug display
+        gitBranch = GitInfo.getCurrentBranch()
+        gitLastCommit = GitInfo.getLastCommitInfo()
+        print("[Controller] Git info: \(gitBranch) - \(gitLastCommit)")
 
         print("[Controller] System initialized. Ready to start.")
     }
